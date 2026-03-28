@@ -99,11 +99,9 @@
                         {{ user.label }}
                         {% if current_wallet and user.address == current_wallet.address %}<span style="color:var(--gold);font-size:11px;"> (you)</span>{% endif %}
                     </span>
-                    <span class="lb-address">{{ user.address[:8] }}...{{ user.address[-6:] }}</span>
                 </div>
                 <div class="lb-score">
                     <span class="lb-karma">{{ user.karma|int }} KRM</span>
-                    <span style="color:var(--sub);font-size:12px;">{{ user.balance }} XRP</span>
                 </div>
             </a>
             {% endfor %}

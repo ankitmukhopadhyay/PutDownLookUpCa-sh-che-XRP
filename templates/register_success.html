@@ -38,8 +38,6 @@
             <div class="sim-result" style="display: block;">
                 <span style="color: var(--positive); font-weight: 700;">Wallet created!</span>
                 <br>Name: {{ result.name }}
-                <br>Address: {{ result.address }}
-                <br>Balance: {{ result.balance }} XRP
                 {% if result.deposit_tx_hash %}
                 <br>Deposit TX: {{ result.deposit_tx_hash[:20] }}...
                 {% endif %}

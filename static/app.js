@@ -189,8 +189,8 @@ async function resolveEvent(eventId, btn) {
 
             if (data.showups && data.showups.length) {
                 html += `Showed up (${data.showups.length}): ${data.showups.join(', ')}\n`;
-                if (data.deposit_xrp > 0)
-                    html += `  Payout: ${data.payout_per_showup} XRP each\n`;
+                if (data.bonus_per_showup > 0)
+                    html += `  Ghost bonus: +${data.bonus_per_showup} XRP each\n`;
             }
             if (data.ghosts && data.ghosts.length) {
                 html += `Ghosted (${data.ghosts.length}): ${data.ghosts.join(', ')}\n`;

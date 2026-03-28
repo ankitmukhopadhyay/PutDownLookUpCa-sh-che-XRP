@@ -165,6 +165,7 @@ def profile(address):
     show_rate = round((show_count / total * 100) if total > 0 else 0)
 
     badges = check_badge_eligibility(show_count, 0)
+    is_own = flask_session.get("address") == address
 
     return render_template(
         "profile.html",
@@ -180,6 +181,8 @@ def profile(address):
         show_rate=show_rate,
         total=total,
         badges=badges,
+        is_own=is_own,
+        explorer_url=f"https://testnet.xrpl.org/accounts/{address}",
     )
 
 
@@ -628,19 +631,16 @@ def event_create():
     if wallets_data:
         for label, data in wallets_data.items():
             if label != "Platform":
-                bal = data.get("balance", 0)
                 users.append({
                     "label": label,
                     "address": data["address"],
-                    "balance": bal,
-                    "display": f"{label} ({bal} XRP)",
                 })
     return render_template("event_create.html", users=users)
 
 
 @app.route("/api/event/create", methods=["POST"])
 def api_event_create():
-    global active_events, wallets_data, user_wallets
+    global active_events
     data = request.get_json()
 
     name = data.get("name", "").strip()
@@ -648,7 +648,6 @@ def api_event_create():
     lon = data.get("lon")
     scheduled_time = data.get("scheduled_time")
     participant_addresses = data.get("participant_addresses", [])
-    deposit_xrp = float(data.get("deposit_xrp", 0))
 
     if not all([name, lat is not None, lon is not None, scheduled_time]):
         return jsonify({"error": "Missing required fields"}), 400
@@ -657,34 +656,15 @@ def api_event_create():
     if len(participant_addresses) != len(set(participant_addresses)):
         return jsonify({"error": "Duplicate participants selected"}), 400
 
-    # Look up names and balances
+    # Look up names — no balance check at creation (each person sets their own stake)
     participants = []
     for addr in participant_addresses:
         label = addr[:12] + "..."
-        balance = 0
         for n, d in (wallets_data or {}).items():
             if d.get("address") == addr:
                 label = n
-                balance = d.get("balance", 0)
                 break
-        participants.append({"name": label, "address": addr, "balance": balance})
-
-    # Validate balance
-    if deposit_xrp > 0:
-        for p in participants:
-            if p["balance"] < deposit_xrp:
-                return jsonify({
-                    "error": f"{p['name']} only has {p['balance']} XRP (need {deposit_xrp} XRP)."
-                }), 400
-
-    # Lock stake — deduct from balance immediately at event creation
-    if deposit_xrp > 0 and wallets_data:
-        for p in participants:
-            for n, d in wallets_data.items():
-                if d.get("address") == p["address"]:
-                    d["balance"] = round(d.get("balance", 0) - deposit_xrp, 6)
-                    break
-        db.save_all_wallets(wallets_data)
+        participants.append({"name": label, "address": addr, "committed": False, "stake": None})
 
     event_id = f"evt_{int(time.time() * 1000)}"
     active_events[event_id] = {
@@ -693,9 +673,9 @@ def api_event_create():
         "lat": float(lat),
         "lon": float(lon),
         "scheduled_time": float(scheduled_time),
-        "deposit_xrp": deposit_xrp,
         "participants": participants,
         "checkins": {},
+        "status": "pending",
     }
     return jsonify({"success": True, "event_id": event_id, "participants": participants})
 
@@ -705,8 +685,11 @@ def api_event_create():
 @app.route("/event")
 def event_status():
     base_url = f"http://{request.host}"
+    viewer_address = flask_session.get("address")
     events = []
     for ev in active_events.values():
+        committed_count = sum(1 for p in ev["participants"] if p.get("committed"))
+        total_count = len(ev["participants"])
         ps = []
         for p in ev["participants"]:
             addr = p["address"]
@@ -714,21 +697,93 @@ def event_status():
             ps.append({
                 "address": addr,
                 "label": p["name"],
+                "committed": p.get("committed", False),
                 "checked_in": addr in ev["checkins"],
                 "distance_ft": info.get("distance_ft"),
                 "elapsed_min": info.get("elapsed_min"),
+                "is_me": addr == viewer_address,
+                "my_stake": p.get("stake") if addr == viewer_address else None,
             })
         events.append({
             "id": ev["id"],
             "name": ev["name"],
             "lat": ev["lat"],
             "lon": ev["lon"],
-            "deposit_xrp": ev["deposit_xrp"],
+            "committed_count": committed_count,
+            "total_count": total_count,
             "participants": ps,
             "scheduled_ms": int(ev["scheduled_time"] * 1000),
             "window_end_ms": int((ev["scheduled_time"] + config.GPS_WINDOW_MINUTES * 60) * 1000),
         })
     return render_template("event_status.html", events=events, base_url=base_url)
+
+
+# ── Commitment ────────────────────────────────────────────────────
+
+@app.route("/commit/<event_id>/<address>")
+def commit_page(event_id, address):
+    if event_id not in active_events:
+        return "Event not found", 404
+    ev = active_events[event_id]
+    participant = next((p for p in ev["participants"] if p["address"] == address), None)
+    if not participant:
+        return "You are not a participant in this event", 403
+
+    balance = 0
+    for n, d in (wallets_data or {}).items():
+        if d.get("address") == address:
+            balance = d.get("balance", 0)
+            break
+
+    return render_template("commit.html",
+        event=ev,
+        address=address,
+        label=participant["name"],
+        balance=balance,
+        committed=participant.get("committed", False),
+        stake=participant.get("stake"),
+        scheduled_ms=int(ev["scheduled_time"] * 1000),
+    )
+
+
+@app.route("/api/event/<event_id>/commit", methods=["POST"])
+def api_event_commit(event_id):
+    global wallets_data
+    if event_id not in active_events:
+        return jsonify({"error": "Event not found"}), 400
+
+    data = request.get_json()
+    address = data.get("address")
+    stake_xrp = float(data.get("stake_xrp", 0))
+
+    if stake_xrp < config.MIN_STAKE_XRP:
+        return jsonify({"error": f"Minimum stake is {config.MIN_STAKE_XRP} XRP."}), 400
+
+    ev = active_events[event_id]
+    participant = next((p for p in ev["participants"] if p["address"] == address), None)
+    if not participant:
+        return jsonify({"error": "You are not a participant in this event"}), 400
+    if participant.get("committed"):
+        return jsonify({"already_committed": True, "stake": participant["stake"]})
+
+    # Validate and deduct balance
+    if wallets_data:
+        for n, d in wallets_data.items():
+            if d.get("address") == address:
+                if d.get("balance", 0) < stake_xrp:
+                    return jsonify({"error": f"Insufficient balance. You have {d.get('balance', 0)} XRP."}), 400
+                d["balance"] = round(d.get("balance", 0) - stake_xrp, 6)
+                break
+        db.save_all_wallets(wallets_data)
+
+    participant["committed"] = True
+    participant["stake"] = stake_xrp
+
+    all_committed = all(p.get("committed") for p in ev["participants"])
+    if all_committed:
+        ev["status"] = "active"
+
+    return jsonify({"success": True, "all_committed": all_committed})
 
 
 # ── GPS Check-In ─────────────────────────────────────────────────
@@ -828,7 +883,6 @@ def api_event_resolve():
 
     ev = active_events[event_id]
     participants = ev["participants"]
-    deposit_xrp = ev.get("deposit_xrp", 0)
     event_name = ev["name"]
     checkins = ev["checkins"]
 
@@ -845,24 +899,31 @@ def api_event_resolve():
     try:
         tx_hashes = {"payments": [], "karma": []}
 
-        ghost_pot       = round(deposit_xrp * len(ghosts), 6)
-        platform_cut    = round(ghost_pot * config.GHOST_PLATFORM_SHARE, 6) if ghost_pot > 0 else 0
-        winner_pool     = round(ghost_pot - platform_cut, 6)
-        bonus_per_show  = round(winner_pool / len(showups), 6) if showups else 0
-        payout_per_show = round(deposit_xrp + bonus_per_show, 6)
+        # Variable stakes — each participant committed their own private amount
+        ghost_pot      = round(sum(p.get("stake") or 0 for p in ghosts), 6)
+        platform_cut   = round(ghost_pot * config.GHOST_PLATFORM_SHARE, 6) if ghost_pot > 0 else 0
+        winner_pool    = round(ghost_pot - platform_cut, 6)
+        bonus_per_show = round(winner_pool / len(showups), 6) if showups else 0
 
-        # Pay show-ups: return stake + ghost pot bonus
+        # Pay show-ups: return their own stake + share of ghost pot
         for p in showups:
-            if deposit_xrp > 0:
-                pay = send_payment(client, platform_wallet, p["address"], payout_per_show,
+            own_stake = p.get("stake") or 0
+            payout = round(own_stake + bonus_per_show, 6)
+            if payout > 0:
+                pay = send_payment(client, platform_wallet, p["address"], payout,
                                    f"Put Up resolved | {event_name}")
                 tx_hashes["payments"].append(pay["tx_hash"])
             karma_delta = config.KARMA_WINNER_BONUS if ghosts else config.KARMA_BOTH_SHOW
             k = issue_karma(client, platform_wallet, p["address"], karma_delta,
                             f"{event_name}: showed up")
             tx_hashes["karma"].append(k["tx_hash"])
+            if wallets_data:
+                for n, d in wallets_data.items():
+                    if d.get("address") == p["address"]:
+                        d["balance"] = round(d.get("balance", 0) + payout, 6)
+                        break
 
-        # Penalise ghosts (stake already deducted at creation)
+        # Penalise ghosts (stake already deducted at commit time)
         for p in ghosts:
             penalty = config.KARMA_BOTH_GHOST_PENALTY if not showups else config.KARMA_GHOST_PENALTY
             current = get_karma_score(client, p["address"], platform_wallet.address)
@@ -872,15 +933,8 @@ def api_event_resolve():
                                burn_amount, f"{event_name}: ghosted")
                 tx_hashes["karma"].append(k["tx_hash"])
 
-        # Update balances: showups get back payout, ghosts already lost stake at creation
-        if deposit_xrp > 0 and wallets_data:
-            for p in showups:
-                for n, d in wallets_data.items():
-                    if d.get("address") == p["address"]:
-                        d["balance"] = round(d.get("balance", 0) + payout_per_show, 6)
-                        break
-            with open(config.WALLETS_FILE, "w") as f:
-                json.dump(wallets_data, f, indent=2)
+        if wallets_data:
+            db.save_all_wallets(wallets_data)
 
         issuer = platform_wallet.address
         outcome = "all_show" if not ghosts else ("all_ghost" if not showups else "mixed")
@@ -890,9 +944,9 @@ def api_event_resolve():
             "outcome": outcome,
             "showups": [p["name"] for p in showups],
             "ghosts":  [p["name"] for p in ghosts],
-            "deposit_xrp": deposit_xrp,
-            "payout_per_showup": payout_per_show if showups else 0,
+            "ghost_pot": ghost_pot,
             "platform_cut": platform_cut,
+            "bonus_per_showup": bonus_per_show,
             "tx_hashes": tx_hashes,
             "new_scores": {p["name"]: get_karma_score(client, p["address"], issuer) for p in participants},
         }

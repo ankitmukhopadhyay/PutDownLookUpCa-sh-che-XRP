@@ -52,6 +52,9 @@ XRP_PER_USD = 2.0              # Demo conversion rate
 MINIMUM_BAG_XRP = 40           # Equiv of $20 at demo rate
 DEFAULT_BAG_XRP = 10           # Default bag for demo (small for testnet)
 
+# ── Stake ───────────────────────────────────────────────────────
+MIN_STAKE_XRP = 10          # Minimum XRP stake per event commitment
+
 # ── GPS Check-In ────────────────────────────────────────────────
 GPS_RADIUS_FEET = 300       # Must be within 300ft of venue
 GPS_WINDOW_MINUTES = 31     # Check-in window opens at scheduled event time

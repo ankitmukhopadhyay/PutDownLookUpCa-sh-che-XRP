@@ -60,11 +60,7 @@
         <div class="event-block">
             <div class="event-title">{{ event.name }}</div>
             <p class="event-meta">Starts: <span id="sched-{{ event.id }}">...</span></p>
-            {% if event.deposit_xrp > 0 %}
-            <p class="event-meta">Stake: {{ event.deposit_xrp }} XRP per person</p>
-            {% else %}
-            <p class="event-meta">Karma only (no XRP stake)</p>
-            {% endif %}
+            <p class="event-meta">{{ event.committed_count }}/{{ event.total_count }} committed</p>
             <div id="status-{{ event.id }}" style="font-size: 14px; font-weight: 700; margin-top: 4px;"></div>
             <div id="cd-{{ event.id }}" class="countdown-display"></div>
 
@@ -77,16 +73,28 @@
                     <div class="participant-detail" style="color: var(--positive);">
                         Checked in — {{ p.distance_ft }}ft away, {{ p.elapsed_min }} min into window
                     </div>
+                    {% elif not p.committed %}
+                    <div class="participant-detail" style="color: var(--sub);">
+                        Hasn't committed yet
+                    </div>
+                    {% if p.is_me %}
+                    <div class="participant-detail" style="margin-top: 6px;">
+                        <a href="/commit/{{ event.id }}/{{ p.address }}" class="btn btn-gold btn-sm">Set Your Stake →</a>
+                    </div>
+                    {% endif %}
                     {% else %}
+                    <div class="participant-detail" style="color: var(--gold);">
+                        Committed
+                        {% if p.my_stake is not none %} — {{ p.my_stake }} XRP (only you can see this){% endif %}
+                    </div>
                     <div class="participant-detail" style="margin-top: 6px;">
                         <a href="/checkin/{{ p.address }}?event_id={{ event.id }}" class="btn btn-outline btn-sm">Open Check-in →</a>
                     </div>
-                    <div class="participant-detail" style="margin-top: 4px; font-family: monospace; font-size: 11px; color: var(--gold); word-break: break-all;">
-                        {{ base_url }}/checkin/{{ p.address }}?event_id={{ event.id }}
-                    </div>
                     {% endif %}
                 </div>
-                <div class="status-icon">{{ '✅' if p.checked_in else '⏳' }}</div>
+                <div class="status-icon">
+                    {% if p.checked_in %}✅{% elif p.committed %}🤝{% else %}⏳{% endif %}
+                </div>
             </div>
             {% endfor %}
 
