@@ -609,6 +609,15 @@ def login():
         return redirect("/")
     return render_template("login.html")
 
+@app.route("/api/debug/wallets")
+def debug_wallets():
+    wallets = db.load_wallets()
+    return jsonify({
+        name: {"has_email": "email" in d, "email": d.get("email")}
+        for name, d in wallets.items()
+        if name != "Platform"
+    })
+
 
 @app.route("/api/login", methods=["POST"])
 def api_login():
