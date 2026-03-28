@@ -587,6 +587,7 @@ def login():
 
 @app.route("/api/login", methods=["POST"])
 def api_login():
+    global wallets_data, user_wallets
     data = request.get_json()
     email = data.get("email", "").strip().lower()
     password = data.get("password", "")
@@ -594,7 +595,8 @@ def api_login():
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
 
-    existing = load_wallets() if os.path.exists(config.WALLETS_FILE) else {}
+    # Always read fresh from DB so users seeded after server start are found
+    existing = db.load_wallets()
     for name, d in existing.items():
         if name == "Platform":
             continue
@@ -602,6 +604,14 @@ def api_login():
             ph = d.get("password_hash", "")
             if ph and check_password_hash(ph, password):
                 flask_session["address"] = d["address"]
+                # Refresh in-memory state so the rest of the app knows this user
+                wallets_data = existing
+                if name not in user_wallets and d.get("seed"):
+                    user_wallets[name] = {
+                        "wallet": Wallet.from_seed(d["seed"]),
+                        "address": d["address"],
+                        "label": name,
+                    }
                 return jsonify({"success": True, "address": d["address"], "name": name,
                                 "profile_url": f"/profile/{d['address']}"})
             else:
