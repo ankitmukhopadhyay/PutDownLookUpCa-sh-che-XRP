@@ -55,8 +55,14 @@
                 <input type="datetime-local" id="event-time" class="form-input">
             </div>
 
-            <div class="card" style="background:var(--dark);padding:12px 16px;border-radius:12px;margin-bottom:16px;">
-                <p class="sub-text" style="margin:0;">Each invited person will privately choose their own stake when they accept. Stakes are never disclosed to others.</p>
+            <div class="form-group">
+                <label class="form-label">Cost of Event (Stakes per Person)</label>
+                <div class="cost-row">
+                    <input type="number" id="deposit-xrp" class="form-input" value="0" min="0" max="500" step="1">
+                    <span class="cost-unit">XRP</span>
+                    <span class="cost-unit" id="deposit-usd" style="color:var(--sub);">(no stakes)</span>
+                </div>
+                <p class="sub-text" style="margin-top: 6px;">0 = karma only. Show up = get it back. Ghost = lose it.</p>
             </div>
 
             <div class="form-group">
@@ -75,13 +81,12 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">Suggest Locations (up to 3 — participants will vote)</label>
-                <div id="location-suggestions"></div>
-                <div style="margin-top:8px;">
-                    <input type="text" id="venue-search" class="form-input" placeholder="Search for a place (e.g. Blue Star Coffee, Tampa)" autocomplete="off">
-                    <div id="venue-results" style="background:var(--dark);border:1px solid var(--border);border-radius:12px;margin-top:4px;display:none;"></div>
-                </div>
-                <p class="sub-text" style="margin-top:6px;">Search and select a place to add it. Participants vote on their favorite.</p>
+                <label class="form-label">Venue</label>
+                <input type="text" id="venue-search" class="form-input" placeholder="Search for a place (e.g. Blue Star Coffee, Tampa)" autocomplete="off">
+                <div id="venue-results" style="background:var(--dark);border:1px solid var(--border);border-radius:12px;margin-top:4px;display:none;"></div>
+                <p id="coord-display" class="coord-display"></p>
+                <input type="hidden" id="lat-input">
+                <input type="hidden" id="lon-input">
             </div>
 
             <button id="create-btn" class="btn btn-gold" style="width:100%; margin-top:8px; font-size:16px; padding:16px;">
@@ -103,6 +108,11 @@
         d.setSeconds(0);
         document.getElementById('event-time').value = d.toISOString().slice(0, 16);
 
+        document.getElementById('deposit-xrp').addEventListener('input', function() {
+            const val = parseFloat(this.value) || 0;
+            document.getElementById('deposit-usd').textContent = val === 0 ? '(no stakes)' : `≈ $${(val * 2).toFixed(0)} USD`;
+            refreshAllDropdowns();
+        });
 
         // Venue search using OpenStreetMap Nominatim
         let venueTimeout;
@@ -128,39 +138,18 @@
             }, 400);
         });
 
-        const locationSuggestions = [];  // [{name, lat, lon}]
-
         function selectVenue(lat, lon, name) {
-            if (locationSuggestions.length >= 3) {
-                alert('Maximum 3 location suggestions.');
-                return;
-            }
-            locationSuggestions.push({ name, lat: parseFloat(lat), lon: parseFloat(lon) });
-            document.getElementById('venue-search').value = '';
+            document.getElementById('lat-input').value = parseFloat(lat).toFixed(6);
+            document.getElementById('lon-input').value = parseFloat(lon).toFixed(6);
+            document.getElementById('venue-search').value = name;
             document.getElementById('venue-results').style.display = 'none';
-            renderLocationSuggestions();
+            document.getElementById('coord-display').textContent = `📍 ${parseFloat(lat).toFixed(5)}, ${parseFloat(lon).toFixed(5)}`;
+            document.getElementById('coord-display').style.color = 'var(--positive)';
         }
 
-        function removeLocation(idx) {
-            locationSuggestions.splice(idx, 1);
-            renderLocationSuggestions();
+        function getStake() {
+            return parseFloat(document.getElementById('deposit-xrp').value) || 0;
         }
-
-        function renderLocationSuggestions() {
-            const container = document.getElementById('location-suggestions');
-            if (locationSuggestions.length === 0) {
-                container.innerHTML = '<p class="sub-text">No locations added yet.</p>';
-                return;
-            }
-            container.innerHTML = locationSuggestions.map((loc, i) =>
-                `<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--dark);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;">
-                    <span style="color:var(--gold);font-weight:800;min-width:22px;">${i+1}.</span>
-                    <span style="flex:1;font-size:13px;">${loc.name}</span>
-                    <button type="button" onclick="removeLocation(${i})" style="background:transparent;border:1px solid var(--border);color:var(--negative);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:14px;">&times;</button>
-                </div>`
-            ).join('');
-        }
-        renderLocationSuggestions();
 
         function getSelectedAddresses(excluding) {
             return Array.from(document.querySelectorAll('.participant-select'))
@@ -170,18 +159,26 @@
         }
 
         function refreshAllDropdowns() {
+            const stake = getStake();
             document.querySelectorAll('.participant-select').forEach(sel => {
                 const otherSelected = getSelectedAddresses(sel);
                 const current = sel.value;
                 sel.innerHTML = '<option value="">— Select user —</option>' +
                     USERS.map(u => {
                         const alreadyPicked = otherSelected.includes(u.address);
-                        let label = u.label;
-                        let disabled = alreadyPicked ? 'disabled' : '';
-                        if (alreadyPicked) label += ' (already added)';
+                        const canAfford = stake === 0 || u.balance >= stake;
+                        let label = u.display;
+                        let disabled = '';
+                        if (alreadyPicked) { label += ' (already added)'; disabled = 'disabled'; }
+                        else if (!canAfford) { label += ` — needs ${(stake - u.balance).toFixed(1)} more XRP`; disabled = 'disabled'; }
                         const selected = u.address === current ? 'selected' : '';
                         return `<option value="${u.address}" ${disabled} ${selected}>${label}</option>`;
                     }).join('');
+                // If current selection became invalid, clear it
+                if (current && sel.value !== current) {
+                    sel.value = '';
+                    showRowError(sel, `This user can't afford the ${stake} XRP stake.`);
+                }
             });
         }
 
@@ -208,7 +205,17 @@
             const sel = document.createElement('select');
             sel.className = 'form-input participant-select';
 
-            sel.addEventListener('change', function() { refreshAllDropdowns(); });
+            sel.addEventListener('change', function() {
+                const stake = getStake();
+                const addr = this.value;
+                if (!addr) { refreshAllDropdowns(); return; }
+                const user = USERS.find(u => u.address === addr);
+                if (user && stake > 0 && user.balance < stake) {
+                    showRowError(this, `Only ${user.balance} XRP — need ${stake} XRP`);
+                    this.value = '';
+                }
+                refreshAllDropdowns();
+            });
 
             const btn = document.createElement('button');
             btn.className = 'remove-btn';
@@ -235,6 +242,9 @@
             try {
                 const name = document.getElementById('event-name').value.trim();
                 const datetimeVal = document.getElementById('event-time').value;
+                const depositXrp = parseFloat(document.getElementById('deposit-xrp').value) || 0;
+                const lat = document.getElementById('lat-input').value;
+                const lon = document.getElementById('lon-input').value;
 
                 const participantAddresses = Array.from(document.querySelectorAll('.participant-select'))
                     .map(s => s.value).filter(Boolean);
@@ -245,7 +255,17 @@
                 if (new Set(participantAddresses).size !== participantAddresses.length) {
                     showError('Each participant can only be added once.'); return;
                 }
-                if (locationSuggestions.length === 0) { showError('Add at least 1 location suggestion.'); return; }
+                if (!lat || !lon) { showError('Set the venue location first — click "Use My Current Location".'); return; }
+
+                if (depositXrp > 0) {
+                    for (const addr of participantAddresses) {
+                        const user = USERS.find(u => u.address === addr);
+                        if (user && user.balance < depositXrp) {
+                            showError(`${user.label} only has ${user.balance} XRP — not enough for ${depositXrp} XRP stake.`);
+                            return;
+                        }
+                    }
+                }
 
                 const scheduledTime = new Date(datetimeVal).getTime() / 1000;
                 createBtn.textContent = 'Creating...';
@@ -259,9 +279,11 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         name,
+                        lat: parseFloat(lat),
+                        lon: parseFloat(lon),
                         scheduled_time: scheduledTime,
+                        deposit_xrp: depositXrp,
                         participant_addresses: participantAddresses,
-                        location_suggestions: locationSuggestions,
                     }),
                 });
                 const data = await resp.json();

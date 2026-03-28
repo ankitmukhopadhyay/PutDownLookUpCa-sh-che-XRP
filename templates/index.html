@@ -52,26 +52,11 @@
         <a href="/" class="logo-small">PUT UP</a>
         <div style="display:flex; gap:6px; align-items:center;">
             {% if current_user %}
-            <div id="notif-bell" style="position:relative;cursor:pointer;" onclick="toggleNotifications()">
-                🔔
-                {% if unread_count > 0 %}
-                <span style="position:absolute;top:-6px;right:-8px;background:var(--negative);color:white;font-size:10px;font-weight:800;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;">{{ unread_count }}</span>
-                {% endif %}
-            </div>
             <a href="/profile/{{ current_user.address }}" class="btn btn-outline btn-sm">{{ current_user.name }}</a>
             {% endif %}
             <a href="/logout" class="btn btn-outline btn-sm">Log Out</a>
         </div>
     </header>
-
-    <!-- Notification dropdown -->
-    <div id="notif-panel" style="display:none;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <strong style="font-size:14px;">Notifications</strong>
-            <button class="btn btn-outline btn-sm" onclick="markAllRead()" style="font-size:11px;">Mark all read</button>
-        </div>
-        <div id="notif-list"><p class="sub-text">Loading...</p></div>
-    </div>
 
     {% if current_wallet %}
     <section class="profile-hero" style="padding: 28px 0 16px;">
@@ -114,9 +99,11 @@
                         {{ user.label }}
                         {% if current_wallet and user.address == current_wallet.address %}<span style="color:var(--gold);font-size:11px;"> (you)</span>{% endif %}
                     </span>
+                    <span class="lb-address">{{ user.address[:8] }}...{{ user.address[-6:] }}</span>
                 </div>
                 <div class="lb-score">
                     <span class="lb-karma">{{ user.karma|int }} KRM</span>
+                    <span style="color:var(--sub);font-size:12px;">{{ user.balance }} XRP</span>
                 </div>
             </a>
             {% endfor %}
@@ -132,44 +119,5 @@
             <p>PUT UP LLC &mdash; RippleX USF Hackathon 2026</p>
         </footer>
     </div>
-
-    {% if logged_in %}
-    <script>
-        let notifOpen = false;
-        async function toggleNotifications() {
-            const panel = document.getElementById('notif-panel');
-            notifOpen = !notifOpen;
-            panel.style.display = notifOpen ? 'block' : 'none';
-            if (notifOpen) {
-                const resp = await fetch('/api/notifications');
-                const data = await resp.json();
-                const list = document.getElementById('notif-list');
-                if (!data.notifications || data.notifications.length === 0) {
-                    list.innerHTML = '<p class="sub-text">No notifications yet.</p>';
-                } else {
-                    list.innerHTML = data.notifications.slice().reverse().map(n => {
-                        const time = new Date(n.timestamp * 1000).toLocaleString();
-                        const bg = n.read ? 'transparent' : 'var(--dark)';
-                        const dot = n.read ? '' : '<span style="color:var(--gold);margin-right:4px;">●</span>';
-                        let link = '';
-                        if (n.event_id) link = ` <a href="/event" style="color:var(--gold);font-size:12px;">View →</a>`;
-                        return `<div style="padding:10px;border-radius:8px;margin-bottom:4px;background:${bg};font-size:13px;">
-                            ${dot}${n.message}${link}
-                            <div style="color:var(--sub);font-size:11px;margin-top:2px;">${time}</div>
-                        </div>`;
-                    }).join('');
-                }
-            }
-        }
-        async function markAllRead() {
-            await fetch('/api/notifications/read', { method: 'POST' });
-            const badge = document.querySelector('#notif-bell span');
-            if (badge) badge.remove();
-            document.querySelectorAll('#notif-list [style*="var(--dark)"]').forEach(el => {
-                el.style.background = 'transparent';
-            });
-        }
-    </script>
-    {% endif %}
 </body>
 </html>

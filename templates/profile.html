@@ -30,21 +30,17 @@
             <h1 class="karma-score">{{ karma|int }}</h1>
             <p class="karma-label">PUT UP KARMA</p>
             <h2 class="profile-name">{{ label }}</h2>
-            {% if is_own %}
-            <p class="profile-address" onclick="copyAddress('{{ address }}')" title="Click to copy" style="font-size:11px;color:var(--sub);">
+            <p class="profile-address" onclick="copyAddress('{{ address }}')" title="Click to copy">
                 {{ address[:12] }}...{{ address[-8:] }} 📋
             </p>
-            {% endif %}
         </section>
 
         <!-- Stats Row -->
         <section class="stats-row">
-            {% if is_own %}
             <div class="stat-card">
                 <span class="stat-value">{{ balance|round(2) }}</span>
-                <span class="stat-label">Your Balance (XRP)</span>
+                <span class="stat-label">PUT UP Balance</span>
             </div>
-            {% endif %}
             <div class="stat-card">
                 <span class="stat-value">{{ total }}</span>
                 <span class="stat-label">Commitments</span>
@@ -74,8 +70,7 @@
         </section>
         {% endif %}
 
-        <!-- Add Funds (own profile only) -->
-        {% if is_own %}
+        <!-- Add Funds -->
         <section class="card">
             <h2>Add Funds</h2>
             <p class="sub-text" style="margin-bottom: 12px;">Current balance: <strong style="color:var(--gold)">{{ balance|default(0) }} XRP</strong></p>
@@ -92,7 +87,6 @@
             <button class="btn btn-gold" style="width:100%;" onclick="addFunds('{{ address }}')">Add Funds via Stripe</button>
             <div id="topup-result" class="sim-result hidden"></div>
         </section>
-        {% endif %}
 
         <!-- GPS Check-In -->
         <section class="card" style="text-align: center;">
@@ -152,14 +146,12 @@
             {% endif %}
         </section>
 
-        {% if is_own %}
-        <!-- Verify (own profile only) -->
+        <!-- Verify -->
         <section class="card" style="text-align: center;">
-            <a href="{{ explorer_url }}" target="_blank" class="btn btn-outline btn-sm">
-                Verify on XRPL Explorer
+            <a href="{{ explorer_url }}" target="_blank" class="btn btn-gold">
+                Verify Full Account on XRPL Explorer
             </a>
         </section>
-        {% endif %}
 
         <footer>
             <p>PUT UP LLC &mdash; All data on XRPL Testnet</p>

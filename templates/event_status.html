@@ -60,74 +60,33 @@
         <div class="event-block">
             <div class="event-title">{{ event.name }}</div>
             <p class="event-meta">Starts: <span id="sched-{{ event.id }}">...</span></p>
-            <p class="event-meta">Commitments: {{ event.committed_count }}/{{ event.total_count }}
-                {% if event.committed_count == event.total_count %}
-                <span style="color:var(--positive);"> — All committed ✓</span>
-                {% endif %}
-            </p>
-            {% if event.location_name %}
-            <p class="event-meta">Venue: <strong style="color:var(--gold);">{{ event.location_name }}</strong></p>
+            {% if event.deposit_xrp > 0 %}
+            <p class="event-meta">Stake: {{ event.deposit_xrp }} XRP per person</p>
+            {% else %}
+            <p class="event-meta">Karma only (no XRP stake)</p>
             {% endif %}
             <div id="status-{{ event.id }}" style="font-size: 14px; font-weight: 700; margin-top: 4px;"></div>
             <div id="cd-{{ event.id }}" class="countdown-display"></div>
-
-            {% if event.locations and event.locations|length > 1 %}
-            <h3 style="margin: 16px 0 8px;">Vote for Location</h3>
-            <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
-                {% for loc in event.locations %}
-                <div style="display:flex;align-items:center;gap:8px;padding:12px;background:var(--dark);border:1px solid {% if loc.voted_by_me %}var(--gold){% else %}var(--border){% endif %};border-radius:10px;">
-                    <span style="flex:1;font-size:14px;">{{ loc.name }}</span>
-                    <span style="color:var(--sub);font-size:13px;">{{ loc.votes }} vote{{ 's' if loc.votes != 1 }}</span>
-                    <button class="btn btn-outline btn-sm" style="{% if loc.voted_by_me %}border-color:var(--gold);color:var(--gold);{% endif %}"
-                            onclick="voteLocation('{{ event.id }}', {{ loc.id }}, this)">
-                        {{ '✓ Voted' if loc.voted_by_me else 'Vote' }}
-                    </button>
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
 
             <h3 style="margin: 16px 0 8px;">Participants</h3>
             {% for p in event.participants %}
             <div class="participant-card {% if p.checked_in %}checked{% endif %}">
                 <div class="participant-info">
-                    <div class="participant-name">
-                        {{ p.label }}
-                        {% if p.is_me %}<span style="color:var(--gold);font-size:12px;"> (you)</span>{% endif %}
-                    </div>
-
-                    {% if not p.committed %}
-                    <div class="participant-detail" style="color:var(--negative);">
-                        Not committed yet
-                        {% if p.is_me %}
-                        — <a href="/commit/{{ event.id }}/{{ p.address }}" style="color:var(--gold);">Commit your stake →</a>
-                        {% else %}
-                        <span style="font-size:11px;font-family:monospace;display:block;color:var(--gold);margin-top:4px;word-break:break-all;">
-                            {{ base_url }}/commit/{{ event.id }}/{{ p.address }}
-                        </span>
-                        {% endif %}
-                    </div>
-                    {% elif p.checked_in %}
+                    <div class="participant-name">{{ p.label }}</div>
+                    {% if p.checked_in %}
                     <div class="participant-detail" style="color: var(--positive);">
                         Checked in — {{ p.distance_ft }}ft away, {{ p.elapsed_min }} min into window
                     </div>
                     {% else %}
-                    <div class="participant-detail" style="color:var(--positive);">Committed ✓</div>
                     <div class="participant-detail" style="margin-top: 6px;">
-                        <a href="/checkin/{{ p.address }}?event_id={{ event.id }}" class="btn btn-outline btn-sm">Check In →</a>
-                        <span style="font-size:11px;font-family:monospace;color:var(--sub);display:block;margin-top:4px;word-break:break-all;">
-                            {{ base_url }}/checkin/{{ p.address }}?event_id={{ event.id }}
-                        </span>
+                        <a href="/checkin/{{ p.address }}?event_id={{ event.id }}" class="btn btn-outline btn-sm">Open Check-in →</a>
+                    </div>
+                    <div class="participant-detail" style="margin-top: 4px; font-family: monospace; font-size: 11px; color: var(--gold); word-break: break-all;">
+                        {{ base_url }}/checkin/{{ p.address }}?event_id={{ event.id }}
                     </div>
                     {% endif %}
-
-                    {% if p.is_me and p.my_stake is not none %}
-                    <div class="participant-detail" style="margin-top:4px;color:var(--sub);">Your stake: {{ p.my_stake }} XRP (private)</div>
-                    {% endif %}
                 </div>
-                <div class="status-icon">
-                    {% if p.checked_in %}✅{% elif p.committed %}🤝{% else %}⏳{% endif %}
-                </div>
+                <div class="status-icon">{{ '✅' if p.checked_in else '⏳' }}</div>
             </div>
             {% endfor %}
 
@@ -151,31 +110,6 @@
     </div>
 
     <script src="/static/app.js"></script>
-    <script>
-        async function voteLocation(eventId, locationId, btn) {
-            btn.disabled = true;
-            btn.textContent = 'Voting...';
-            try {
-                const resp = await fetch('/api/event/' + eventId + '/vote', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ address: '{{ current_user.address if current_user else "" }}', location_id: locationId }),
-                });
-                const data = await resp.json();
-                if (data.error) {
-                    alert(data.error);
-                    btn.disabled = false;
-                    btn.textContent = 'Vote';
-                } else {
-                    window.location.reload();
-                }
-            } catch(e) {
-                alert('Error: ' + e.message);
-                btn.disabled = false;
-                btn.textContent = 'Vote';
-            }
-        }
-    </script>
     {% if events %}
     <script>
         const EVENTS = {{ events | tojson }};

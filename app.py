@@ -17,9 +17,8 @@ from xrpl.wallet import Wallet
 from xrpl.models.requests import AccountTx
 
 import config
-import db
 from wallet_manager import (
-    get_xrp_balance, get_karma_balance,
+    get_xrp_balance, get_karma_balance, load_wallets,
     create_funded_wallet, create_user_wallet, setup_trust_line,
 )
 from karma_engine import get_karma_score, get_karma_history, issue_karma, burn_karma
@@ -53,9 +52,6 @@ user_wallets = {}
 # In-memory active events keyed by event ID (resets on server restart)
 active_events = {}
 
-# In-memory notifications: address → [{type, message, event_id, timestamp, read}]
-notifications = {}
-
 # Pending registrations: token → {name, email, password_hash, deposit_xrp}
 pending_registrations = {}
 
@@ -65,16 +61,16 @@ def init_xrpl():
     global client, wallets_data, platform_wallet, user_wallets
 
     client = JsonRpcClient(config.TESTNET_URL)
-    db.init_db()
 
-    existing = db.load_wallets()
+    existing = load_wallets() if os.path.exists(config.WALLETS_FILE) else {}
 
     # Auto-create Platform wallet on first run — no demo_seed.py needed
     if "Platform" not in existing:
         print("  No Platform wallet found — creating one from testnet faucet...")
         pw = create_funded_wallet(client, "Platform")
         existing["Platform"] = {"address": pw.address, "seed": pw.seed}
-        db.save_wallet("Platform", existing["Platform"])
+        with open(config.WALLETS_FILE, "w") as f:
+            json.dump(existing, f, indent=2)
         print(f"  ✓ Platform wallet created: {pw.address}")
 
     wallets_data = existing
@@ -88,19 +84,6 @@ def init_xrpl():
             }
 
 
-def add_notification(address, ntype, message, event_id=None):
-    """Add an in-app notification for a user."""
-    if address not in notifications:
-        notifications[address] = []
-    notifications[address].append({
-        "type": ntype,
-        "message": message,
-        "event_id": event_id,
-        "timestamp": time.time(),
-        "read": False,
-    })
-
-
 # ── Context Processor ───────────────────────────────────────────
 
 @app.context_processor
@@ -112,10 +95,7 @@ def inject_user():
             if data.get("address") == address:
                 current_user = {"name": name, "address": address}
                 break
-    unread_count = 0
-    if address and address in notifications:
-        unread_count = sum(1 for n in notifications[address] if not n["read"])
-    return {"current_user": current_user, "unread_count": unread_count}
+    return {"current_user": current_user}
 
 
 # ── Routes ──────────────────────────────────────────────────────
@@ -130,11 +110,10 @@ def index():
     # Build user list with karma for dashboard
     users = []
     current_wallet = None
-    fresh = db.load_wallets()
-    issuer_address = fresh["Platform"]["address"] if fresh and "Platform" in fresh else None
+    issuer_address = wallets_data["Platform"]["address"] if wallets_data else None
 
-    if fresh and issuer_address:
-        for label, data in fresh.items():
+    if wallets_data and issuer_address:
+        for label, data in wallets_data.items():
             if label == "Platform":
                 continue
             karma = get_karma_score(client, data["address"], issuer_address) if client else 0
@@ -158,8 +137,8 @@ def index():
 @app.route("/profile/<address>")
 def profile(address):
     """User karma profile page."""
-    if not client or not wallets_data or "Platform" not in wallets_data:
-        return "Server still initializing. Please try again in a moment.", 503
+    if not client or not wallets_data:
+        return "Run demo_seed.py first to create wallets.", 500
 
     issuer_address = wallets_data["Platform"]["address"]
 
@@ -185,7 +164,6 @@ def profile(address):
     show_rate = round((show_count / total * 100) if total > 0 else 0)
 
     badges = check_badge_eligibility(show_count, 0)
-    is_own = flask_session.get("address") == address
 
     return render_template(
         "profile.html",
@@ -201,25 +179,19 @@ def profile(address):
         show_rate=show_rate,
         total=total,
         badges=badges,
-        is_own=is_own,
-        explorer_url=f"https://testnet.xrpl.org/accounts/{address}",
     )
 
 
 @app.route("/leaderboard")
 def leaderboard():
     """Leaderboard — ranked by karma score."""
-    if not client:
-        return "Server still initializing.", 500
+    if not client or not wallets_data:
+        return "Run demo_seed.py first.", 500
 
-    fresh = db.load_wallets()
-    if not fresh or "Platform" not in fresh:
-        return "No wallets found.", 500
-
-    issuer_address = fresh["Platform"]["address"]
+    issuer_address = wallets_data["Platform"]["address"]
     users = []
 
-    for label, data in fresh.items():
+    for label, data in wallets_data.items():
         if label == "Platform":
             continue
         karma = get_karma_score(client, data["address"], issuer_address)
@@ -333,7 +305,7 @@ def stripe_checkout():
     if len(password) < 6:
         return jsonify({"error": "Password must be at least 6 characters"}), 400
 
-    existing = db.load_wallets()
+    existing = load_wallets() if os.path.exists(config.WALLETS_FILE) else {}
     if name in existing:
         return jsonify({"error": f"'{name}' is already registered."}), 400
     # Check email uniqueness
@@ -400,8 +372,8 @@ def register_success():
             error="Payment not completed. Please try again.")
 
     try:
-        metadata = stripe_session.metadata or {}
-        token = metadata.get("token") if hasattr(metadata, "get") else None
+        metadata = dict(stripe_session.metadata or {})
+        token = metadata.get("token")
         pending = pending_registrations.pop(token, None) if token else None
 
         if not pending:
@@ -490,7 +462,8 @@ def topup_success():
             if d.get("address") == address:
                 d["balance"] = round(d.get("balance", 0) + topup_xrp, 6)
                 break
-        db.save_all_wallets(wallets_data)
+        with open(config.WALLETS_FILE, "w") as f:
+            json.dump(wallets_data, f, indent=2)
 
         return redirect(f"/profile/{address}?topped_up={topup_xrp}")
     except Exception as e:
@@ -501,12 +474,7 @@ def _create_wallet_and_respond(name, deposit_xrp, stripe_paid=False, email=None,
     """Shared wallet creation logic used by both Stripe and direct registration."""
     global wallets_data, user_wallets
 
-    existing = db.load_wallets()
-
-    # Always keep Platform in existing (defensive: DB may not have it yet)
-    if "Platform" not in existing and wallets_data and "Platform" in wallets_data:
-        existing["Platform"] = wallets_data["Platform"]
-        db.save_wallet("Platform", wallets_data["Platform"])
+    existing = load_wallets() if os.path.exists(config.WALLETS_FILE) else {}
 
     # Guard 1: name already taken
     if name in existing:
@@ -553,7 +521,9 @@ def _create_wallet_and_respond(name, deposit_xrp, stripe_paid=False, email=None,
             entry["password_hash"] = password_hash
 
         existing[name] = entry
-        db.save_wallet(name, entry)
+        with open(config.WALLETS_FILE, "w") as f:
+            json.dump(existing, f, indent=2)
+
         wallets_data = existing
         user_wallets[name] = {
             "wallet": new_wallet,
@@ -614,15 +584,6 @@ def login():
         return redirect("/")
     return render_template("login.html")
 
-@app.route("/api/debug/wallets")
-def debug_wallets():
-    wallets = db.load_wallets()
-    return jsonify({
-        name: {"has_email": "email" in d, "email": d.get("email")}
-        for name, d in wallets.items()
-        if name != "Platform"
-    })
-
 
 @app.route("/api/login", methods=["POST"])
 def api_login():
@@ -633,7 +594,7 @@ def api_login():
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
 
-    existing = db.load_wallets()
+    existing = load_wallets() if os.path.exists(config.WALLETS_FILE) else {}
     for name, d in existing.items():
         if name == "Platform":
             continue
@@ -641,17 +602,11 @@ def api_login():
             ph = d.get("password_hash", "")
             if ph and check_password_hash(ph, password):
                 flask_session["address"] = d["address"]
-                return jsonify({
-                    "success": True,
-                    "address": d["address"],
-                    "name": name,
-                    "profile_url": f"/profile/{d['address']}"
-                })
+                return jsonify({"success": True, "address": d["address"], "name": name,
+                                "profile_url": f"/profile/{d['address']}"})
             else:
-                # Email matched but password is wrong — stop here
                 return jsonify({"error": "Incorrect password"}), 401
 
-    # No wallet matched the email at all
     return jsonify({"error": "No account found with that email"}), 404
 
 
@@ -659,24 +614,6 @@ def api_login():
 def logout():
     flask_session.clear()
     return redirect("/")
-
-
-@app.route("/api/notifications")
-def api_notifications():
-    address = flask_session.get("address")
-    if not address:
-        return jsonify({"notifications": []})
-    user_notifs = notifications.get(address, [])
-    return jsonify({"notifications": user_notifs})
-
-
-@app.route("/api/notifications/read", methods=["POST"])
-def api_notifications_read():
-    address = flask_session.get("address")
-    if address and address in notifications:
-        for n in notifications[address]:
-            n["read"] = True
-    return jsonify({"success": True})
 
 
 
@@ -704,118 +641,61 @@ def api_event_create():
     data = request.get_json()
 
     name = data.get("name", "").strip()
+    lat = data.get("lat")
+    lon = data.get("lon")
     scheduled_time = data.get("scheduled_time")
     participant_addresses = data.get("participant_addresses", [])
-    organizer_address = data.get("organizer_address", flask_session.get("address", ""))
-    # Location suggestions (up to 3) — participants will vote
-    location_suggestions = data.get("location_suggestions", [])
+    deposit_xrp = float(data.get("deposit_xrp", 0))
 
-    if not all([name, scheduled_time]):
-        return jsonify({"error": "Missing event name or scheduled time"}), 400
+    if not all([name, lat is not None, lon is not None, scheduled_time]):
+        return jsonify({"error": "Missing required fields"}), 400
     if len(participant_addresses) < 2:
         return jsonify({"error": "At least 2 participants required"}), 400
     if len(participant_addresses) != len(set(participant_addresses)):
         return jsonify({"error": "Duplicate participants selected"}), 400
-    if not location_suggestions or len(location_suggestions) == 0:
-        return jsonify({"error": "Add at least 1 location suggestion"}), 400
-    if len(location_suggestions) > 3:
-        location_suggestions = location_suggestions[:3]
 
-    # Validate each location has name, lat, lon
-    for loc in location_suggestions:
-        if not loc.get("name") or loc.get("lat") is None or loc.get("lon") is None:
-            return jsonify({"error": "Each location needs a name and coordinates"}), 400
-
-    # Look up names — no balance check at creation (each person sets their own stake)
+    # Look up names and balances
     participants = []
     for addr in participant_addresses:
         label = addr[:12] + "..."
+        balance = 0
         for n, d in (wallets_data or {}).items():
             if d.get("address") == addr:
                 label = n
+                balance = d.get("balance", 0)
                 break
-        participants.append({"name": label, "address": addr, "committed": False, "stake": None})
+        participants.append({"name": label, "address": addr, "balance": balance})
 
-    # Build location options with empty vote lists
-    locations = []
-    for i, loc in enumerate(location_suggestions):
-        locations.append({
-            "id": i,
-            "name": loc["name"],
-            "lat": float(loc["lat"]),
-            "lon": float(loc["lon"]),
-            "votes": [],  # list of voter addresses
-        })
+    # Validate balance
+    if deposit_xrp > 0:
+        for p in participants:
+            if p["balance"] < deposit_xrp:
+                return jsonify({
+                    "error": f"{p['name']} only has {p['balance']} XRP (need {deposit_xrp} XRP)."
+                }), 400
+
+    # Lock stake — deduct from balance immediately at event creation
+    if deposit_xrp > 0 and wallets_data:
+        for p in participants:
+            for n, d in wallets_data.items():
+                if d.get("address") == p["address"]:
+                    d["balance"] = round(d.get("balance", 0) - deposit_xrp, 6)
+                    break
+        with open(config.WALLETS_FILE, "w") as f:
+            json.dump(wallets_data, f, indent=2)
 
     event_id = f"evt_{int(time.time() * 1000)}"
     active_events[event_id] = {
         "id": event_id,
         "name": name,
-        "lat": locations[0]["lat"],      # default to first suggestion
-        "lon": locations[0]["lon"],       # updated when voting concludes
-        "location_name": locations[0]["name"],
+        "lat": float(lat),
+        "lon": float(lon),
         "scheduled_time": float(scheduled_time),
-        "organizer_address": organizer_address,
+        "deposit_xrp": deposit_xrp,
         "participants": participants,
-        "locations": locations,
         "checkins": {},
-        "status": "pending",
     }
-    # Notify all participants
-    organizer_name = "Someone"
-    if wallets_data:
-        for n, d in wallets_data.items():
-            if d.get("address") == organizer_address:
-                organizer_name = n
-                break
-    for p in participants:
-        add_notification(
-            p["address"], "invite",
-            f"{organizer_name} invited you to \"{name}\"! Commit your stake to join.",
-            event_id,
-        )
-
     return jsonify({"success": True, "event_id": event_id, "participants": participants})
-
-
-@app.route("/api/event/<event_id>/vote", methods=["POST"])
-def api_event_vote(event_id):
-    """Vote for a preferred location."""
-    if event_id not in active_events:
-        return jsonify({"error": "Event not found"}), 400
-    ev = active_events[event_id]
-    data = request.get_json()
-    address = data.get("address")
-    location_id = data.get("location_id")
-
-    if address not in [p["address"] for p in ev["participants"]]:
-        return jsonify({"error": "You are not a participant"}), 400
-    if location_id is None:
-        return jsonify({"error": "Select a location"}), 400
-
-    locations = ev.get("locations", [])
-    target = next((l for l in locations if l["id"] == location_id), None)
-    if not target:
-        return jsonify({"error": "Location not found"}), 400
-
-    # Remove previous vote from this user (one vote per person)
-    for loc in locations:
-        if address in loc["votes"]:
-            loc["votes"].remove(address)
-    target["votes"].append(address)
-
-    # Update event location to the one with the most votes
-    winner = max(locations, key=lambda l: len(l["votes"]))
-    ev["lat"] = winner["lat"]
-    ev["lon"] = winner["lon"]
-    ev["location_name"] = winner["name"]
-
-    return jsonify({
-        "success": True,
-        "voted_for": target["name"],
-        "current_winner": winner["name"],
-        "votes": {l["name"]: len(l["votes"]) for l in locations},
-    })
 
 
 # ── Event Status ─────────────────────────────────────────────────
@@ -823,126 +703,30 @@ def api_event_vote(event_id):
 @app.route("/event")
 def event_status():
     base_url = f"http://{request.host}"
-    viewer_address = flask_session.get("address")
     events = []
     for ev in active_events.values():
-        committed_count = sum(1 for p in ev["participants"] if p["committed"])
-        total_count = len(ev["participants"])
         ps = []
         for p in ev["participants"]:
             addr = p["address"]
-            checkin_info = ev["checkins"].get(addr, {})
+            info = ev["checkins"].get(addr, {})
             ps.append({
                 "address": addr,
                 "label": p["name"],
-                "committed": p["committed"],
                 "checked_in": addr in ev["checkins"],
-                "distance_ft": checkin_info.get("distance_ft"),
-                "elapsed_min": checkin_info.get("elapsed_min"),
-                "is_me": addr == viewer_address,
-                # Only reveal own stake — others' stakes are private
-                "my_stake": p["stake"] if addr == viewer_address else None,
+                "distance_ft": info.get("distance_ft"),
+                "elapsed_min": info.get("elapsed_min"),
             })
-        # Build location voting data
-        locs = []
-        my_vote = None
-        for loc in ev.get("locations", []):
-            vote_count = len(loc["votes"])
-            voted_by_me = viewer_address in loc["votes"]
-            if voted_by_me:
-                my_vote = loc["id"]
-            locs.append({
-                "id": loc["id"],
-                "name": loc["name"],
-                "votes": vote_count,
-                "voted_by_me": voted_by_me,
-            })
-
         events.append({
             "id": ev["id"],
             "name": ev["name"],
             "lat": ev["lat"],
             "lon": ev["lon"],
-            "location_name": ev.get("location_name", ""),
-            "status": ev.get("status", "pending"),
-            "organizer_address": ev.get("organizer_address", ""),
-            "committed_count": committed_count,
-            "total_count": total_count,
+            "deposit_xrp": ev["deposit_xrp"],
             "participants": ps,
-            "locations": locs,
-            "my_vote": my_vote,
             "scheduled_ms": int(ev["scheduled_time"] * 1000),
             "window_end_ms": int((ev["scheduled_time"] + config.GPS_WINDOW_MINUTES * 60) * 1000),
         })
     return render_template("event_status.html", events=events, base_url=base_url)
-
-
-# ── Commitment ────────────────────────────────────────────────────
-
-@app.route("/commit/<event_id>/<address>")
-def commit_page(event_id, address):
-    if event_id not in active_events:
-        return "Event not found", 404
-    ev = active_events[event_id]
-    participant = next((p for p in ev["participants"] if p["address"] == address), None)
-    if not participant:
-        return "You are not a participant in this event", 403
-
-    balance = 0
-    for n, d in (wallets_data or {}).items():
-        if d.get("address") == address:
-            balance = d.get("balance", 0)
-            break
-
-    return render_template("commit.html",
-        event=ev,
-        address=address,
-        label=participant["name"],
-        balance=balance,
-        committed=participant["committed"],
-        stake=participant["stake"],
-        scheduled_ms=int(ev["scheduled_time"] * 1000),
-    )
-
-
-@app.route("/api/event/<event_id>/commit", methods=["POST"])
-def api_event_commit(event_id):
-    global wallets_data
-    if event_id not in active_events:
-        return jsonify({"error": "Event not found"}), 400
-
-    data = request.get_json()
-    address = data.get("address")
-    stake_xrp = float(data.get("stake_xrp", 0))
-
-    if stake_xrp < config.MIN_STAKE_XRP:
-        return jsonify({"error": f"Minimum stake is {config.MIN_STAKE_XRP} XRP."}), 400
-
-    ev = active_events[event_id]
-    participant = next((p for p in ev["participants"] if p["address"] == address), None)
-    if not participant:
-        return jsonify({"error": "You are not a participant in this event"}), 400
-    if participant["committed"]:
-        return jsonify({"already_committed": True, "stake": participant["stake"]})
-
-    # Validate and deduct balance
-    if stake_xrp > 0 and wallets_data:
-        for n, d in wallets_data.items():
-            if d.get("address") == address:
-                if d.get("balance", 0) < stake_xrp:
-                    return jsonify({"error": f"Insufficient balance. You have {d.get('balance', 0)} XRP."}), 400
-                d["balance"] = round(d.get("balance", 0) - stake_xrp, 6)
-                break
-        db.save_all_wallets(wallets_data)
-
-    participant["committed"] = True
-    participant["stake"] = stake_xrp
-
-    all_committed = all(p["committed"] for p in ev["participants"])
-    if all_committed:
-        ev["status"] = "active"
-
-    return jsonify({"success": True, "all_committed": all_committed})
 
 
 # ── GPS Check-In ─────────────────────────────────────────────────
@@ -1042,6 +826,7 @@ def api_event_resolve():
 
     ev = active_events[event_id]
     participants = ev["participants"]
+    deposit_xrp = ev.get("deposit_xrp", 0)
     event_name = ev["name"]
     checkins = ev["checkins"]
 
@@ -1058,31 +843,24 @@ def api_event_resolve():
     try:
         tx_hashes = {"payments": [], "karma": []}
 
-        # Variable stakes — each participant committed their own private amount
-        ghost_pot      = round(sum(p.get("stake") or 0 for p in ghosts), 6)
-        platform_cut   = round(ghost_pot * config.GHOST_PLATFORM_SHARE, 6) if ghost_pot > 0 else 0
-        winner_pool    = round(ghost_pot - platform_cut, 6)
-        bonus_per_show = round(winner_pool / len(showups), 6) if showups else 0
+        ghost_pot       = round(deposit_xrp * len(ghosts), 6)
+        platform_cut    = round(ghost_pot * config.GHOST_PLATFORM_SHARE, 6) if ghost_pot > 0 else 0
+        winner_pool     = round(ghost_pot - platform_cut, 6)
+        bonus_per_show  = round(winner_pool / len(showups), 6) if showups else 0
+        payout_per_show = round(deposit_xrp + bonus_per_show, 6)
 
-        # Pay show-ups: return their own stake + share of ghost pot
+        # Pay show-ups: return stake + ghost pot bonus
         for p in showups:
-            own_stake = p.get("stake") or 0
-            payout = round(own_stake + bonus_per_show, 6)
-            if payout > 0:
-                pay = send_payment(client, platform_wallet, p["address"], payout,
+            if deposit_xrp > 0:
+                pay = send_payment(client, platform_wallet, p["address"], payout_per_show,
                                    f"Put Up resolved | {event_name}")
                 tx_hashes["payments"].append(pay["tx_hash"])
             karma_delta = config.KARMA_WINNER_BONUS if ghosts else config.KARMA_BOTH_SHOW
             k = issue_karma(client, platform_wallet, p["address"], karma_delta,
                             f"{event_name}: showed up")
             tx_hashes["karma"].append(k["tx_hash"])
-            if wallets_data:
-                for n, d in wallets_data.items():
-                    if d.get("address") == p["address"]:
-                        d["balance"] = round(d.get("balance", 0) + payout, 6)
-                        break
 
-        # Penalise ghosts (stake already deducted at commit time)
+        # Penalise ghosts (stake already deducted at creation)
         for p in ghosts:
             penalty = config.KARMA_BOTH_GHOST_PENALTY if not showups else config.KARMA_GHOST_PENALTY
             current = get_karma_score(client, p["address"], platform_wallet.address)
@@ -1092,8 +870,15 @@ def api_event_resolve():
                                burn_amount, f"{event_name}: ghosted")
                 tx_hashes["karma"].append(k["tx_hash"])
 
-        if wallets_data:
-            db.save_all_wallets(wallets_data)
+        # Update balances: showups get back payout, ghosts already lost stake at creation
+        if deposit_xrp > 0 and wallets_data:
+            for p in showups:
+                for n, d in wallets_data.items():
+                    if d.get("address") == p["address"]:
+                        d["balance"] = round(d.get("balance", 0) + payout_per_show, 6)
+                        break
+            with open(config.WALLETS_FILE, "w") as f:
+                json.dump(wallets_data, f, indent=2)
 
         issuer = platform_wallet.address
         outcome = "all_show" if not ghosts else ("all_ghost" if not showups else "mixed")
@@ -1103,9 +888,9 @@ def api_event_resolve():
             "outcome": outcome,
             "showups": [p["name"] for p in showups],
             "ghosts":  [p["name"] for p in ghosts],
-            "ghost_pot": ghost_pot,
+            "deposit_xrp": deposit_xrp,
+            "payout_per_showup": payout_per_show if showups else 0,
             "platform_cut": platform_cut,
-            "bonus_per_showup": bonus_per_show,
             "tx_hashes": tx_hashes,
             "new_scores": {p["name"]: get_karma_score(client, p["address"], issuer) for p in participants},
         }

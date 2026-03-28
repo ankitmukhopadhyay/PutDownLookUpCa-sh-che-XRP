@@ -35,6 +35,7 @@
                 <span class="lb-tier-icon">{{ user.tier.icon }}</span>
                 <div class="lb-info">
                     <span class="lb-name">{{ user.label }}</span>
+                    <span class="lb-address">{{ user.address[:8] }}...{{ user.address[-6:] }}</span>
                 </div>
                 <div class="lb-score">
                     <span class="lb-karma">{{ user.karma|int }} KRM</span>
