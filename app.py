@@ -250,8 +250,9 @@ def api_register():
         return jsonify({"error": f"'{name}' is already registered. Choose a different name."}), 400
 
     try:
-        new_wallet = create_funded_wallet(client, name)
-        setup_trust_line(client, new_wallet, platform_wallet.address)
+        fresh_client = JsonRpcClient(config.TESTNET_URL)
+        new_wallet = create_funded_wallet(fresh_client, name)
+        setup_trust_line(fresh_client, new_wallet, platform_wallet.address)
 
         existing[name] = {"address": new_wallet.address, "seed": new_wallet.seed}
         with open(config.WALLETS_FILE, "w") as f:
@@ -311,8 +312,9 @@ def api_event_create():
     try:
         created = []
         for pname in participant_names:
-            w = create_funded_wallet(client, pname)
-            setup_trust_line(client, w, platform_wallet.address)
+            fresh_client = JsonRpcClient(config.TESTNET_URL)
+            w = create_funded_wallet(fresh_client, pname)
+            setup_trust_line(fresh_client, w, platform_wallet.address)
             existing[pname] = {"address": w.address, "seed": w.seed}
             user_wallets[pname] = {"wallet": w, "address": w.address, "label": pname}
             created.append({"name": pname, "address": w.address})
