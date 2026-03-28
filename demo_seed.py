@@ -174,8 +174,6 @@ def main():
     print(f"  Alice:    {alice.address}")
     print(f"  Bob:      {bob.address}")
     print(f"\n  Total on-chain transactions: {tx_count}")
-    print(f"\n  Verify any transaction at:")
-    print(f"  https://testnet.xrpl.org/accounts/{alice.address}")
     print(f"\n  Now run: python app.py")
     print(f"  Then open: http://localhost:5000")
     print(f"{'=' * 70}\n")

@@ -88,9 +88,6 @@
                 <div class="xrp-bal">{{ platform_xrp }} XRP</div>
                 <div class="addr">{{ platform_address }}</div>
             </div>
-            <a href="{{ testnet_url }}{{ platform_address }}" target="_blank" class="ext-link">
-                View on testnet.xrpl.org ↗
-            </a>
         </div>
     </div>
 
@@ -107,9 +104,6 @@
                     <div class="wc-bal xrp">XRP <span>{{ u.xrp }}</span></div>
                     <div class="wc-bal krm">KRM <span>{{ u.krm }}</span></div>
                 </div>
-                <a href="{{ testnet_url }}{{ u.address }}" target="_blank" class="wc-ext">
-                    View on testnet.xrpl.org ↗
-                </a>
             </div>
             {% endfor %}
         </div>
@@ -155,10 +149,7 @@
                     <td class="memo">{{ tx.memo }}</td>
                     <td style="white-space:nowrap;color:#555;font-size:0.75rem;">{{ tx.date }}</td>
                     <td>
-                        <a href="https://testnet.xrpl.org/transactions/{{ tx.hash }}"
-                           target="_blank" class="mono" style="font-size:0.75rem;color:#c9a84c;text-decoration:none;">
-                            {{ tx.hash_short }}
-                        </a>
+                        <span class="mono" style="font-size:0.75rem;color:#c9a84c;">{{ tx.hash_short }}</span>
                     </td>
                     <td>
                         {% if tx.result == "tesSUCCESS" %}

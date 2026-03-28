@@ -179,7 +179,6 @@ def profile(address):
         show_rate=show_rate,
         total=total,
         badges=badges,
-        explorer_url=f"https://testnet.xrpl.org/accounts/{address}",
     )
 
 
@@ -1011,7 +1010,6 @@ def explorer():
         users=users,
         transactions=transactions,
         network="XRPL Testnet",
-        testnet_url="https://testnet.xrpl.org/accounts/",
     )
 
 

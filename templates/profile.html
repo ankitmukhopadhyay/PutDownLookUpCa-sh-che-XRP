@@ -135,10 +135,7 @@
                         </div>
                         <p class="timeline-reason">{{ event.reason }}</p>
                         {% if event.tx_hash %}
-                        <a href="https://testnet.xrpl.org/transactions/{{ event.tx_hash }}"
-                           target="_blank" class="tx-link">
-                            Verify on XRPL: {{ event.tx_hash[:12] }}...
-                        </a>
+                        <span class="tx-link">TX: {{ event.tx_hash[:12] }}...</span>
                         {% endif %}
                     </div>
                 </div>

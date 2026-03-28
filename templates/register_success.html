@@ -41,7 +41,7 @@
                 <br>Address: {{ result.address }}
                 <br>Balance: {{ result.balance }} XRP
                 {% if result.deposit_tx_hash %}
-                <br>Deposit TX: <a href="https://testnet.xrpl.org/transactions/{{ result.deposit_tx_hash }}" target="_blank" class="tx-link">{{ result.deposit_tx_hash[:20] }}...</a>
+                <br>Deposit TX: {{ result.deposit_tx_hash[:20] }}...
                 {% endif %}
                 {% if result.stripe_paid %}
                 <br><span style="color: var(--positive);">Payment verified via Stripe</span>

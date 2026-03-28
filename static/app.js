@@ -211,7 +211,7 @@ async function resolveEvent(eventId, btn) {
                     ...(data.tx_hashes.karma||[]),
                 ];
                 for (const hash of all) {
-                    if (hash) html += `  <a href="https://testnet.xrpl.org/transactions/${hash}" target="_blank" class="tx-link">${hash.substring(0, 20)}...</a>\n`;
+                    if (hash) html += `  <span class="tx-link">${hash.substring(0, 20)}...</span>\n`;
                 }
             }
             resultDiv.innerHTML = html;
@@ -338,7 +338,7 @@ async function simulate(scenario, eventName) {
                 ];
                 for (const hash of all) {
                     if (hash) {
-                        html += '  <a href="https://testnet.xrpl.org/transactions/' + hash + '" target="_blank" class="tx-link">' + hash.substring(0, 20) + '...</a>\n';
+                        html += '  <span class="tx-link">' + hash.substring(0, 20) + '...</span>\n';
                     }
                 }
             }
