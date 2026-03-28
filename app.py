@@ -17,8 +17,9 @@ from xrpl.wallet import Wallet
 from xrpl.models.requests import AccountTx
 
 import config
+import db
 from wallet_manager import (
-    get_xrp_balance, get_karma_balance, load_wallets,
+    get_xrp_balance, get_karma_balance,
     create_funded_wallet, create_user_wallet, setup_trust_line,
 )
 from karma_engine import get_karma_score, get_karma_history, issue_karma, burn_karma
@@ -61,16 +62,16 @@ def init_xrpl():
     global client, wallets_data, platform_wallet, user_wallets
 
     client = JsonRpcClient(config.TESTNET_URL)
+    db.init_db()
 
-    existing = load_wallets() if os.path.exists(config.WALLETS_FILE) else {}
+    existing = db.load_wallets()
 
     # Auto-create Platform wallet on first run — no demo_seed.py needed
     if "Platform" not in existing:
         print("  No Platform wallet found — creating one from testnet faucet...")
         pw = create_funded_wallet(client, "Platform")
         existing["Platform"] = {"address": pw.address, "seed": pw.seed}
-        with open(config.WALLETS_FILE, "w") as f:
-            json.dump(existing, f, indent=2)
+        db.save_wallet("Platform", existing["Platform"])
         print(f"  ✓ Platform wallet created: {pw.address}")
 
     wallets_data = existing
@@ -305,7 +306,7 @@ def stripe_checkout():
     if len(password) < 6:
         return jsonify({"error": "Password must be at least 6 characters"}), 400
 
-    existing = load_wallets() if os.path.exists(config.WALLETS_FILE) else {}
+    existing = db.load_wallets()
     if name in existing:
         return jsonify({"error": f"'{name}' is already registered."}), 400
     # Check email uniqueness
@@ -462,8 +463,7 @@ def topup_success():
             if d.get("address") == address:
                 d["balance"] = round(d.get("balance", 0) + topup_xrp, 6)
                 break
-        with open(config.WALLETS_FILE, "w") as f:
-            json.dump(wallets_data, f, indent=2)
+        db.save_all_wallets(wallets_data)
 
         return redirect(f"/profile/{address}?topped_up={topup_xrp}")
     except Exception as e:
@@ -474,7 +474,7 @@ def _create_wallet_and_respond(name, deposit_xrp, stripe_paid=False, email=None,
     """Shared wallet creation logic used by both Stripe and direct registration."""
     global wallets_data, user_wallets
 
-    existing = load_wallets() if os.path.exists(config.WALLETS_FILE) else {}
+    existing = db.load_wallets()
 
     # Guard 1: name already taken
     if name in existing:
@@ -521,9 +521,7 @@ def _create_wallet_and_respond(name, deposit_xrp, stripe_paid=False, email=None,
             entry["password_hash"] = password_hash
 
         existing[name] = entry
-        with open(config.WALLETS_FILE, "w") as f:
-            json.dump(existing, f, indent=2)
-
+        db.save_wallet(name, entry)
         wallets_data = existing
         user_wallets[name] = {
             "wallet": new_wallet,
@@ -594,7 +592,7 @@ def api_login():
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
 
-    existing = load_wallets() if os.path.exists(config.WALLETS_FILE) else {}
+    existing = db.load_wallets()
     for name, d in existing.items():
         if name == "Platform":
             continue
@@ -681,8 +679,7 @@ def api_event_create():
                 if d.get("address") == p["address"]:
                     d["balance"] = round(d.get("balance", 0) - deposit_xrp, 6)
                     break
-        with open(config.WALLETS_FILE, "w") as f:
-            json.dump(wallets_data, f, indent=2)
+        db.save_all_wallets(wallets_data)
 
     event_id = f"evt_{int(time.time() * 1000)}"
     active_events[event_id] = {
