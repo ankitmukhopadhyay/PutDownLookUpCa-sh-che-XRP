@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Commit to Event — PUT UP</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .stake-row { display: flex; align-items: center; gap: 10px; margin: 12px 0; }
+        .stake-input { width: 130px; background: var(--dark); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; color: var(--gold); font-size: 24px; font-weight: 800; text-align: right; outline: none; }
+        .stake-input:focus { border-color: var(--gold); }
+        .private-note { background: var(--dark); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; font-size: 13px; color: var(--sub); margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header-bar">
+            <a href="/event" class="btn btn-outline btn-sm">← Events</a>
+            <a href="/" class="logo-small">PUT UP</a>
+            {% if current_user %}
+            <div style="display:flex;gap:6px;align-items:center;">
+                <a href="/profile/{{ current_user.address }}" class="btn btn-outline btn-sm">{{ current_user.name }}</a>
+                <a href="/logout" class="btn btn-outline btn-sm">Log Out</a>
+            </div>
+            {% else %}
+            <a href="/login" class="btn btn-gold btn-sm">Log In</a>
+            {% endif %}
+        </header>
+
+        <section class="profile-hero" style="padding-bottom: 0;">
+            <p class="karma-label">YOU'RE INVITED</p>
+            <h1 class="page-title" style="font-size: 28px; margin-top: 8px;">{{ event.name }}</h1>
+            <p class="sub-text" style="margin-top: 6px;">
+                {{ event.lat | round(4) }}, {{ event.lon | round(4) }} &nbsp;·&nbsp;
+                <span id="event-time">loading...</span>
+            </p>
+        </section>
+
+        <section class="card" style="margin-top: 24px;">
+
+            {% if committed %}
+            <div style="text-align:center; padding: 16px 0;">
+                <p style="font-size: 48px; margin-bottom: 12px;">🤝</p>
+                <h2>You're committed!</h2>
+                <p class="sub-text" style="margin-top: 8px;">Your stake: <strong style="color:var(--gold)">{{ stake }} XRP</strong> (private — only you can see this)</p>
+                <a href="/checkin/{{ address }}?event_id={{ event.id }}" class="btn btn-gold" style="width:100%;display:block;margin-top:20px;">
+                    📍 Go to Check-In
+                </a>
+            </div>
+            {% else %}
+            <h2>Set Your Stake</h2>
+            <div class="private-note">
+                🔒 Your stake is <strong>private</strong> — other participants will never see how much you put in.
+                Show up = get it back + share of anyone who ghosts. Ghost = lose it all.
+            </div>
+
+            <p class="sub-text">Your available balance: <strong style="color:var(--gold)">{{ balance }} XRP</strong></p>
+
+            <div class="stake-row">
+                <input type="number" id="stake-input" class="stake-input" value="0" min="0" max="{{ balance }}" step="1">
+                <span style="color:var(--sub); font-size:14px;">XRP</span>
+                <span id="stake-usd" style="color:var(--sub); font-size:13px;">(karma only)</span>
+            </div>
+            <p class="sub-text">0 XRP = karma stakes only (no financial risk).</p>
+
+            <button id="commit-btn" class="btn btn-gold" style="width:100%; margin-top:16px; font-size:16px; padding:16px;">
+                🤝 Commit to This Event
+            </button>
+            <div id="commit-result" class="sim-result hidden" style="margin-top:12px;"></div>
+            {% endif %}
+        </section>
+
+        <footer>
+            <p>PUT UP LLC &mdash; All data on XRPL Testnet</p>
+        </footer>
+    </div>
+
+    <script>
+        const EVENT_ID = "{{ event.id }}";
+        const ADDRESS  = "{{ address }}";
+        const BALANCE  = {{ balance }};
+        const SCHEDULED_MS = {{ scheduled_ms }};
+
+        document.getElementById('event-time').textContent = new Date(SCHEDULED_MS).toLocaleString();
+
+        const stakeInput = document.getElementById('stake-input');
+        const stakeUsd   = document.getElementById('stake-usd');
+        if (stakeInput) {
+            stakeInput.addEventListener('input', function() {
+                const val = parseFloat(this.value) || 0;
+                stakeUsd.textContent = val === 0 ? '(karma only)' : `≈ $${(val * 2).toFixed(0)} USD`;
+            });
+        }
+
+        const commitBtn = document.getElementById('commit-btn');
+        if (commitBtn) {
+            commitBtn.addEventListener('click', async function() {
+                const stake = parseFloat(document.getElementById('stake-input').value) || 0;
+                const resultDiv = document.getElementById('commit-result');
+
+                if (stake > BALANCE) {
+                    resultDiv.classList.remove('hidden');
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = '<span style="color:var(--negative)">Insufficient balance.</span>';
+                    return;
+                }
+
+                commitBtn.disabled = true;
+                commitBtn.textContent = 'Committing...';
+                resultDiv.classList.remove('hidden');
+                resultDiv.style.display = 'block';
+                resultDiv.textContent = 'Locking in your commitment...';
+
+                try {
+                    const resp = await fetch(`/api/event/${EVENT_ID}/commit`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ address: ADDRESS, stake_xrp: stake }),
+                    });
+                    const data = await resp.json();
+                    if (data.error) {
+                        resultDiv.innerHTML = `<span style="color:var(--negative)">${data.error}</span>`;
+                        commitBtn.disabled = false;
+                        commitBtn.textContent = '🤝 Commit to This Event';
+                    } else {
+                        resultDiv.innerHTML = '<span style="color:var(--positive)">Committed! Redirecting...</span>';
+                        setTimeout(() => { window.location.href = '/event'; }, 1200);
+                    }
+                } catch(e) {
+                    resultDiv.innerHTML = `<span style="color:var(--negative)">Error: ${e.message}</span>`;
+                    commitBtn.disabled = false;
+                    commitBtn.textContent = '🤝 Commit to This Event';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

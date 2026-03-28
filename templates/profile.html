@@ -37,10 +37,12 @@
 
         <!-- Stats Row -->
         <section class="stats-row">
+            {% if is_own %}
             <div class="stat-card">
                 <span class="stat-value">{{ balance|round(2) }}</span>
-                <span class="stat-label">PUT UP Balance</span>
+                <span class="stat-label">Your Balance (XRP)</span>
             </div>
+            {% endif %}
             <div class="stat-card">
                 <span class="stat-value">{{ total }}</span>
                 <span class="stat-label">Commitments</span>
@@ -70,7 +72,8 @@
         </section>
         {% endif %}
 
-        <!-- Add Funds -->
+        <!-- Add Funds (own profile only) -->
+        {% if is_own %}
         <section class="card">
             <h2>Add Funds</h2>
             <p class="sub-text" style="margin-bottom: 12px;">Current balance: <strong style="color:var(--gold)">{{ balance|default(0) }} XRP</strong></p>
@@ -87,6 +90,7 @@
             <button class="btn btn-gold" style="width:100%;" onclick="addFunds('{{ address }}')">Add Funds via Stripe</button>
             <div id="topup-result" class="sim-result hidden"></div>
         </section>
+        {% endif %}
 
         <!-- GPS Check-In -->
         <section class="card" style="text-align: center;">
