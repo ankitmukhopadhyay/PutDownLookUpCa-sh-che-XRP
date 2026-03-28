@@ -138,8 +138,8 @@ def index():
 @app.route("/profile/<address>")
 def profile(address):
     """User karma profile page."""
-    if not client or not wallets_data:
-        return "Run demo_seed.py first to create wallets.", 500
+    if not client or not wallets_data or "Platform" not in wallets_data:
+        return "Server still initializing. Please try again in a moment.", 503
 
     issuer_address = wallets_data["Platform"]["address"]
 
@@ -373,8 +373,8 @@ def register_success():
             error="Payment not completed. Please try again.")
 
     try:
-        metadata = dict(stripe_session.metadata or {})
-        token = metadata.get("token")
+        metadata = stripe_session.metadata or {}
+        token = metadata.get("token") if hasattr(metadata, "get") else None
         pending = pending_registrations.pop(token, None) if token else None
 
         if not pending:
@@ -475,6 +475,11 @@ def _create_wallet_and_respond(name, deposit_xrp, stripe_paid=False, email=None,
     global wallets_data, user_wallets
 
     existing = db.load_wallets()
+
+    # Always keep Platform in existing (defensive: DB may not have it yet)
+    if "Platform" not in existing and wallets_data and "Platform" in wallets_data:
+        existing["Platform"] = wallets_data["Platform"]
+        db.save_wallet("Platform", wallets_data["Platform"])
 
     # Guard 1: name already taken
     if name in existing:
