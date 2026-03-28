@@ -130,10 +130,11 @@ def index():
     # Build user list with karma for dashboard
     users = []
     current_wallet = None
-    issuer_address = wallets_data["Platform"]["address"] if wallets_data else None
+    fresh = db.load_wallets()
+    issuer_address = fresh["Platform"]["address"] if fresh and "Platform" in fresh else None
 
-    if wallets_data and issuer_address:
-        for label, data in wallets_data.items():
+    if fresh and issuer_address:
+        for label, data in fresh.items():
             if label == "Platform":
                 continue
             karma = get_karma_score(client, data["address"], issuer_address) if client else 0
@@ -208,13 +209,17 @@ def profile(address):
 @app.route("/leaderboard")
 def leaderboard():
     """Leaderboard — ranked by karma score."""
-    if not client or not wallets_data:
-        return "Run demo_seed.py first.", 500
+    if not client:
+        return "Server still initializing.", 500
 
-    issuer_address = wallets_data["Platform"]["address"]
+    fresh = db.load_wallets()
+    if not fresh or "Platform" not in fresh:
+        return "No wallets found.", 500
+
+    issuer_address = fresh["Platform"]["address"]
     users = []
 
-    for label, data in wallets_data.items():
+    for label, data in fresh.items():
         if label == "Platform":
             continue
         karma = get_karma_score(client, data["address"], issuer_address)
