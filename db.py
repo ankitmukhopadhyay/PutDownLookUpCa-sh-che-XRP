@@ -56,9 +56,9 @@ def load_wallets():
     for row in rows:
         name, address, seed, email, password_hash, balance, deposit_xrp, stripe_paid = row
         entry = {"address": address, "seed": seed}
-        if email:
+        if email is not None:
             entry["email"] = email
-        if password_hash:
+        if password_hash is not None:
             entry["password_hash"] = password_hash
         if balance is not None:
             entry["balance"] = balance
