@@ -45,10 +45,21 @@
             </div>
         </section>
 
-        <!-- Demo Users -->
+        <!-- Actions -->
+        <section class="card">
+            <h2>Get Started</h2>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <a href="/register" class="btn btn-gold">Create My Wallet</a>
+                <a href="/event/create" class="btn btn-outline">Create Event</a>
+                <a href="/event" class="btn btn-outline">Event Status</a>
+                <a href="/leaderboard" class="btn btn-outline">Leaderboard</a>
+            </div>
+        </section>
+
+        <!-- Users -->
         {% if users %}
         <section class="card">
-            <h2>Demo Profiles</h2>
+            <h2>Profiles</h2>
             <div class="user-grid">
                 {% for user in users %}
                 <a href="/profile/{{ user.address }}" class="user-card">
@@ -56,9 +67,6 @@
                     <span class="user-address">{{ user.address[:8] }}...{{ user.address[-6:] }}</span>
                 </a>
                 {% endfor %}
-            </div>
-            <div style="text-align: center; margin-top: 16px;">
-                <a href="/leaderboard" class="btn btn-outline">View Leaderboard</a>
             </div>
         </section>
         {% endif %}

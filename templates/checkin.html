@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Check In — PUT UP</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .checkin-hero { text-align: center; padding: 40px 0 24px; }
+        .checkin-name { font-size: 32px; font-weight: 900; color: var(--gold); margin-bottom: 4px; }
+        .window-status { font-size: 18px; font-weight: 700; margin: 8px 0; }
+        .window-open { color: var(--positive); }
+        .window-closed { color: var(--negative); }
+        .window-pending { color: var(--sub); }
+        .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-key { color: var(--sub); }
+        .detail-val { font-weight: 600; font-family: monospace; }
+        .checkin-success { text-align: center; padding: 24px; }
+        .success-icon { font-size: 64px; display: block; margin-bottom: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header-bar">
+            <a href="/" class="logo-small">PUT UP</a>
+            <a href="/event" class="btn btn-outline btn-sm">Event Status</a>
+        </header>
+
+        {% if not event %}
+        <section class="card" style="text-align: center; margin-top: 40px;">
+            <p style="font-size: 48px; margin-bottom: 16px;">📭</p>
+            <h2>No Active Event</h2>
+            <p class="sub-text" style="margin: 12px 0 20px;">There's no event running right now.</p>
+            <a href="/event/create" class="btn btn-gold">Create an Event</a>
+        </section>
+
+        {% elif checked_in %}
+        <section class="checkin-hero">
+            <span style="font-size: 64px; display: block; margin-bottom: 8px;">✅</span>
+            <div class="checkin-name">{{ label }}</div>
+            <p class="window-status window-open">Checked in!</p>
+            <p class="sub-text">{{ event.name }}</p>
+        </section>
+        <section class="card">
+            <div class="detail-row">
+                <span class="detail-key">Distance from venue</span>
+                <span class="detail-val">{{ checkin_info.distance_ft }}ft</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Time into window</span>
+                <span class="detail-val">{{ checkin_info.elapsed_min }} min</span>
+            </div>
+        </section>
+        <section class="card" style="text-align: center;">
+            <a href="/event" class="btn btn-gold">Back to Event Status</a>
+        </section>
+
+        {% else %}
+        <section class="checkin-hero">
+            <div class="checkin-name">{{ label }}</div>
+            <p class="sub-text">{{ event.name }}</p>
+            <p class="window-status" id="window-label">...</p>
+            <p id="countdown" style="font-size: 22px; font-weight: 800; color: var(--gold); margin-top: 4px;"></p>
+        </section>
+
+        <section class="card">
+            <h2>Event Details</h2>
+            <div class="detail-row">
+                <span class="detail-key">Event</span>
+                <span class="detail-val">{{ event.name }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Scheduled time</span>
+                <span class="detail-val" id="scheduled-display">...</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Check-in window</span>
+                <span class="detail-val">{{ gps_window }} minutes</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-key">Required proximity</span>
+                <span class="detail-val">within {{ gps_radius }}ft</span>
+            </div>
+        </section>
+
+        <section class="card" style="text-align: center;">
+            <button id="checkin-btn" class="btn btn-gold" style="width: 100%; font-size: 18px; padding: 18px;" disabled
+                    onclick="doCheckin('{{ address }}')">
+                📍 Check In Now
+            </button>
+            <p class="sub-text" style="margin-top: 10px;" id="btn-hint">Button unlocks when the event starts.</p>
+            <div id="checkin-result" class="sim-result hidden" style="margin-top: 12px;"></div>
+        </section>
+        {% endif %}
+
+        <footer>
+            <p>PUT UP LLC &mdash; All data on XRPL Testnet</p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+    {% if event and not checked_in %}
+    <script>
+        const scheduledMs = {{ scheduled_ms }};
+        const windowEndMs = {{ window_end_ms }};
+        const now = Date.now();
+
+        // Show scheduled time in local timezone
+        document.getElementById('scheduled-display').textContent =
+            new Date(scheduledMs).toLocaleString();
+
+        const checkinBtn = document.getElementById('checkin-btn');
+        const windowLabel = document.getElementById('window-label');
+        const btnHint = document.getElementById('btn-hint');
+
+        function enableCheckin() {
+            checkinBtn.disabled = false;
+            windowLabel.textContent = 'Window is open!';
+            windowLabel.className = 'window-status window-open';
+            btnHint.textContent = 'You must be within {{ gps_radius }}ft of the venue.';
+            startCountdown(windowEndMs, 'countdown', function() {
+                checkinBtn.disabled = true;
+                windowLabel.textContent = 'Window closed';
+                windowLabel.className = 'window-status window-closed';
+                document.getElementById('countdown').textContent = '';
+            });
+        }
+
+        if (now >= windowEndMs) {
+            windowLabel.textContent = 'Check-in window closed';
+            windowLabel.className = 'window-status window-closed';
+            document.getElementById('countdown').textContent = '';
+        } else if (now >= scheduledMs) {
+            enableCheckin();
+        } else {
+            windowLabel.textContent = 'Event not started yet';
+            windowLabel.className = 'window-status window-pending';
+            startOpenCountdown(scheduledMs, 'countdown', enableCheckin);
+        }
+    </script>
+    {% endif %}
+</body>
+</html>

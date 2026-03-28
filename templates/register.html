@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register — PUT UP</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header-bar">
+            <a href="/" class="logo-small">PUT UP</a>
+            <a href="/leaderboard" class="btn btn-outline btn-sm">Leaderboard</a>
+        </header>
+
+        <section class="profile-hero" style="padding-bottom: 0;">
+            <h1 class="page-title">Create Your Wallet</h1>
+            <p class="sub-text" style="margin-top: 8px;">Get a real XRPL testnet wallet. Your reputation starts here.</p>
+        </section>
+
+        <section class="card" style="margin-top: 24px;">
+            <h2>Your Name</h2>
+            <p class="sub-text" style="margin-bottom: 16px;">This is how you'll appear on the leaderboard.</p>
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="name-input" placeholder="Enter your name..."
+                       class="search-input" autocomplete="off" maxlength="20">
+                <button id="register-btn" class="btn btn-gold" onclick="registerUser()">
+                    Create My Wallet
+                </button>
+            </div>
+            <div id="register-result" class="sim-result hidden"></div>
+        </section>
+
+        <section class="card">
+            <h2>What happens?</h2>
+            <div class="steps">
+                <div class="step">
+                    <span class="step-icon">🪙</span>
+                    <h3>Funded Wallet</h3>
+                    <p>A real XRPL testnet wallet is created and funded with XRP from the faucet (~15 sec).</p>
+                </div>
+                <div class="step">
+                    <span class="step-icon">🔗</span>
+                    <h3>Trust Line</h3>
+                    <p>A KRM trust line is set up so you can earn and lose karma on-chain.</p>
+                </div>
+                <div class="step">
+                    <span class="step-icon">📍</span>
+                    <h3>Ready to Commit</h3>
+                    <p>Join events, put up your bag, check in via GPS, and build your reputation.</p>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>PUT UP LLC &mdash; All data on XRPL Testnet</p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+    <script>
+        document.getElementById('name-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') registerUser();
+        });
+    </script>
+</body>
+</html>
