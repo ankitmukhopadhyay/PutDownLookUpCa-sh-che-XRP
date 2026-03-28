@@ -27,6 +27,7 @@ from xrpl.clients import JsonRpcClient
 from xrpl.wallet import Wallet
 from werkzeug.security import generate_password_hash
 
+import requests
 import config
 import db
 from wallet_manager import (
@@ -35,6 +36,23 @@ from wallet_manager import (
 )
 from karma_engine import get_karma_score, issue_karma, burn_karma
 from escrow_engine import send_payment
+
+
+def faucet_topup(address):
+    """Ask the XRPL testnet faucet to top up an existing address."""
+    try:
+        r = requests.post(
+            "https://faucet.altnet.rippletest.net/accounts",
+            json={"destination": address},
+            timeout=30,
+        )
+        if r.ok:
+            log(f"Faucet topped up {address[:16]}... ✓")
+            time.sleep(4)
+        else:
+            log(f"Faucet response: {r.status_code} {r.text[:100]}")
+    except Exception as e:
+        log(f"Faucet top-up failed: {e}")
 
 # ── Demo user definitions ────────────────────────────────────────
 
@@ -80,6 +98,11 @@ def setup_demo():
 
     platform_wallet = Wallet.from_seed(existing["Platform"]["seed"])
 
+    # Top up platform wallet from faucet so it can fund all demo users
+    # Each user needs 22 XRP (reserve) + 20 XRP (demo balance) = 42 XRP
+    log("Topping up platform wallet from testnet faucet...")
+    faucet_topup(platform_wallet.address)
+
     print()
     print("── Creating demo users ─────────────────────────")
 
@@ -119,6 +142,8 @@ def setup_demo():
             }
             existing[name] = entry
             db.save_wallet(name, entry)
+            # Also persist to wallets.json for local dev (no-op when DATABASE_URL is set)
+            db.save_all_wallets(existing)
             log(f"✓ {name}: {new_wallet.address}  (balance: {DEMO_BALANCE} XRP)")
             created.append(name)
         except Exception as e:
@@ -130,8 +155,7 @@ def setup_demo():
     print("   Alice SHOWS UP.  Bob GHOSTS.")
     print()
 
-    # Need at least Alice and Bob
-    existing = db.load_wallets()
+    # Use in-memory dict (already up to date) rather than reloading from DB
     if "Alice" not in existing or "Bob" not in existing:
         log("Alice and Bob must both exist to simulate — skipping simulation.")
     else:
