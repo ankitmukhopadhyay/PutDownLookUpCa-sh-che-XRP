@@ -65,8 +65,27 @@
                 <span style="color:var(--positive);"> — All committed ✓</span>
                 {% endif %}
             </p>
+            {% if event.location_name %}
+            <p class="event-meta">Venue: <strong style="color:var(--gold);">{{ event.location_name }}</strong></p>
+            {% endif %}
             <div id="status-{{ event.id }}" style="font-size: 14px; font-weight: 700; margin-top: 4px;"></div>
             <div id="cd-{{ event.id }}" class="countdown-display"></div>
+
+            {% if event.locations and event.locations|length > 1 %}
+            <h3 style="margin: 16px 0 8px;">Vote for Location</h3>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">
+                {% for loc in event.locations %}
+                <div style="display:flex;align-items:center;gap:8px;padding:12px;background:var(--dark);border:1px solid {% if loc.voted_by_me %}var(--gold){% else %}var(--border){% endif %};border-radius:10px;">
+                    <span style="flex:1;font-size:14px;">{{ loc.name }}</span>
+                    <span style="color:var(--sub);font-size:13px;">{{ loc.votes }} vote{{ 's' if loc.votes != 1 }}</span>
+                    <button class="btn btn-outline btn-sm" style="{% if loc.voted_by_me %}border-color:var(--gold);color:var(--gold);{% endif %}"
+                            onclick="voteLocation('{{ event.id }}', {{ loc.id }}, this)">
+                        {{ '✓ Voted' if loc.voted_by_me else 'Vote' }}
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
 
             <h3 style="margin: 16px 0 8px;">Participants</h3>
             {% for p in event.participants %}
@@ -132,6 +151,31 @@
     </div>
 
     <script src="/static/app.js"></script>
+    <script>
+        async function voteLocation(eventId, locationId, btn) {
+            btn.disabled = true;
+            btn.textContent = 'Voting...';
+            try {
+                const resp = await fetch('/api/event/' + eventId + '/vote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address: '{{ current_user.address if current_user else "" }}', location_id: locationId }),
+                });
+                const data = await resp.json();
+                if (data.error) {
+                    alert(data.error);
+                    btn.disabled = false;
+                    btn.textContent = 'Vote';
+                } else {
+                    window.location.reload();
+                }
+            } catch(e) {
+                alert('Error: ' + e.message);
+                btn.disabled = false;
+                btn.textContent = 'Vote';
+            }
+        }
+    </script>
     {% if events %}
     <script>
         const EVENTS = {{ events | tojson }};

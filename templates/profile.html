@@ -30,9 +30,11 @@
             <h1 class="karma-score">{{ karma|int }}</h1>
             <p class="karma-label">PUT UP KARMA</p>
             <h2 class="profile-name">{{ label }}</h2>
-            <p class="profile-address" onclick="copyAddress('{{ address }}')" title="Click to copy">
+            {% if is_own %}
+            <p class="profile-address" onclick="copyAddress('{{ address }}')" title="Click to copy" style="font-size:11px;color:var(--sub);">
                 {{ address[:12] }}...{{ address[-8:] }} 📋
             </p>
+            {% endif %}
         </section>
 
         <!-- Stats Row -->
@@ -150,12 +152,14 @@
             {% endif %}
         </section>
 
-        <!-- Verify -->
+        {% if is_own %}
+        <!-- Verify (own profile only) -->
         <section class="card" style="text-align: center;">
-            <a href="{{ explorer_url }}" target="_blank" class="btn btn-gold">
-                Verify Full Account on XRPL Explorer
+            <a href="{{ explorer_url }}" target="_blank" class="btn btn-outline btn-sm">
+                Verify on XRPL Explorer
             </a>
         </section>
+        {% endif %}
 
         <footer>
             <p>PUT UP LLC &mdash; All data on XRPL Testnet</p>

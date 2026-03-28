@@ -57,11 +57,24 @@
             <p class="sub-text">Your available balance: <strong style="color:var(--gold)">{{ balance }} XRP</strong></p>
 
             <div class="stake-row">
-                <input type="number" id="stake-input" class="stake-input" value="0" min="0" max="{{ balance }}" step="1">
+                <input type="number" id="stake-input" class="stake-input" value="10" min="10" max="{{ balance }}" step="1">
                 <span style="color:var(--sub); font-size:14px;">XRP</span>
-                <span id="stake-usd" style="color:var(--sub); font-size:13px;">(karma only)</span>
+                <span id="stake-usd" style="color:var(--sub); font-size:13px;">≈ $20 USD</span>
             </div>
-            <p class="sub-text">0 XRP = karma stakes only (no financial risk).</p>
+            <p class="sub-text">Minimum stake: <strong>10 XRP</strong>. Show up = get it back + bonus. Ghost = lose it all.</p>
+
+            {% if event.locations and event.locations|length > 1 %}
+            <h3 style="margin: 16px 0 8px;">Vote for Location</h3>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
+                {% for loc in event.locations %}
+                <label style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--dark);border:1px solid var(--border);border-radius:10px;cursor:pointer;">
+                    <input type="radio" name="location_vote" value="{{ loc.id }}" {% if loop.first %}checked{% endif %}>
+                    <span style="flex:1;font-size:14px;">{{ loc.name }}</span>
+                    <span style="color:var(--sub);font-size:12px;">{{ loc.votes|length }} vote{{ 's' if loc.votes|length != 1 }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            {% endif %}
 
             <button id="commit-btn" class="btn btn-gold" style="width:100%; margin-top:16px; font-size:16px; padding:16px;">
                 🤝 Commit to This Event
@@ -98,10 +111,16 @@
                 const stake = parseFloat(document.getElementById('stake-input').value) || 0;
                 const resultDiv = document.getElementById('commit-result');
 
+                if (stake < 10) {
+                    resultDiv.classList.remove('hidden');
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = '<span style="color:var(--negative)">Minimum stake is 10 XRP.</span>';
+                    return;
+                }
                 if (stake > BALANCE) {
                     resultDiv.classList.remove('hidden');
                     resultDiv.style.display = 'block';
-                    resultDiv.innerHTML = '<span style="color:var(--negative)">Insufficient balance.</span>';
+                    resultDiv.innerHTML = '<span style="color:var(--negative)">Insufficient balance. You have ' + BALANCE + ' XRP.</span>';
                     return;
                 }
 
@@ -112,6 +131,16 @@
                 resultDiv.textContent = 'Locking in your commitment...';
 
                 try {
+                    // Submit location vote if applicable
+                    const voteRadio = document.querySelector('input[name="location_vote"]:checked');
+                    if (voteRadio) {
+                        await fetch(`/api/event/${EVENT_ID}/vote`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ address: ADDRESS, location_id: parseInt(voteRadio.value) }),
+                        });
+                    }
+
                     const resp = await fetch(`/api/event/${EVENT_ID}/commit`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },

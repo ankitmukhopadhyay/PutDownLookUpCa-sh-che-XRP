@@ -75,12 +75,13 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">Venue</label>
-                <input type="text" id="venue-search" class="form-input" placeholder="Search for a place (e.g. Blue Star Coffee, Tampa)" autocomplete="off">
-                <div id="venue-results" style="background:var(--dark);border:1px solid var(--border);border-radius:12px;margin-top:4px;display:none;"></div>
-                <p id="coord-display" class="coord-display"></p>
-                <input type="hidden" id="lat-input">
-                <input type="hidden" id="lon-input">
+                <label class="form-label">Suggest Locations (up to 3 — participants will vote)</label>
+                <div id="location-suggestions"></div>
+                <div style="margin-top:8px;">
+                    <input type="text" id="venue-search" class="form-input" placeholder="Search for a place (e.g. Blue Star Coffee, Tampa)" autocomplete="off">
+                    <div id="venue-results" style="background:var(--dark);border:1px solid var(--border);border-radius:12px;margin-top:4px;display:none;"></div>
+                </div>
+                <p class="sub-text" style="margin-top:6px;">Search and select a place to add it. Participants vote on their favorite.</p>
             </div>
 
             <button id="create-btn" class="btn btn-gold" style="width:100%; margin-top:8px; font-size:16px; padding:16px;">
@@ -127,14 +128,39 @@
             }, 400);
         });
 
+        const locationSuggestions = [];  // [{name, lat, lon}]
+
         function selectVenue(lat, lon, name) {
-            document.getElementById('lat-input').value = parseFloat(lat).toFixed(6);
-            document.getElementById('lon-input').value = parseFloat(lon).toFixed(6);
-            document.getElementById('venue-search').value = name;
+            if (locationSuggestions.length >= 3) {
+                alert('Maximum 3 location suggestions.');
+                return;
+            }
+            locationSuggestions.push({ name, lat: parseFloat(lat), lon: parseFloat(lon) });
+            document.getElementById('venue-search').value = '';
             document.getElementById('venue-results').style.display = 'none';
-            document.getElementById('coord-display').textContent = `📍 ${parseFloat(lat).toFixed(5)}, ${parseFloat(lon).toFixed(5)}`;
-            document.getElementById('coord-display').style.color = 'var(--positive)';
+            renderLocationSuggestions();
         }
+
+        function removeLocation(idx) {
+            locationSuggestions.splice(idx, 1);
+            renderLocationSuggestions();
+        }
+
+        function renderLocationSuggestions() {
+            const container = document.getElementById('location-suggestions');
+            if (locationSuggestions.length === 0) {
+                container.innerHTML = '<p class="sub-text">No locations added yet.</p>';
+                return;
+            }
+            container.innerHTML = locationSuggestions.map((loc, i) =>
+                `<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--dark);border:1px solid var(--border);border-radius:10px;margin-bottom:6px;">
+                    <span style="color:var(--gold);font-weight:800;min-width:22px;">${i+1}.</span>
+                    <span style="flex:1;font-size:13px;">${loc.name}</span>
+                    <button type="button" onclick="removeLocation(${i})" style="background:transparent;border:1px solid var(--border);color:var(--negative);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:14px;">&times;</button>
+                </div>`
+            ).join('');
+        }
+        renderLocationSuggestions();
 
         function getSelectedAddresses(excluding) {
             return Array.from(document.querySelectorAll('.participant-select'))
@@ -209,8 +235,6 @@
             try {
                 const name = document.getElementById('event-name').value.trim();
                 const datetimeVal = document.getElementById('event-time').value;
-                const lat = document.getElementById('lat-input').value;
-                const lon = document.getElementById('lon-input').value;
 
                 const participantAddresses = Array.from(document.querySelectorAll('.participant-select'))
                     .map(s => s.value).filter(Boolean);
@@ -221,7 +245,7 @@
                 if (new Set(participantAddresses).size !== participantAddresses.length) {
                     showError('Each participant can only be added once.'); return;
                 }
-                if (!lat || !lon) { showError('Set the venue location — use the venue search above.'); return; }
+                if (locationSuggestions.length === 0) { showError('Add at least 1 location suggestion.'); return; }
 
                 const scheduledTime = new Date(datetimeVal).getTime() / 1000;
                 createBtn.textContent = 'Creating...';
@@ -235,10 +259,9 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         name,
-                        lat: parseFloat(lat),
-                        lon: parseFloat(lon),
                         scheduled_time: scheduledTime,
                         participant_addresses: participantAddresses,
+                        location_suggestions: locationSuggestions,
                     }),
                 });
                 const data = await resp.json();

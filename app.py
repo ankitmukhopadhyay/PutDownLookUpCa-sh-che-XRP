@@ -53,6 +53,9 @@ user_wallets = {}
 # In-memory active events keyed by event ID (resets on server restart)
 active_events = {}
 
+# In-memory notifications: address → [{type, message, event_id, timestamp, read}]
+notifications = {}
+
 # Pending registrations: token → {name, email, password_hash, deposit_xrp}
 pending_registrations = {}
 
@@ -85,6 +88,19 @@ def init_xrpl():
             }
 
 
+def add_notification(address, ntype, message, event_id=None):
+    """Add an in-app notification for a user."""
+    if address not in notifications:
+        notifications[address] = []
+    notifications[address].append({
+        "type": ntype,
+        "message": message,
+        "event_id": event_id,
+        "timestamp": time.time(),
+        "read": False,
+    })
+
+
 # ── Context Processor ───────────────────────────────────────────
 
 @app.context_processor
@@ -96,7 +112,10 @@ def inject_user():
             if data.get("address") == address:
                 current_user = {"name": name, "address": address}
                 break
-    return {"current_user": current_user}
+    unread_count = 0
+    if address and address in notifications:
+        unread_count = sum(1 for n in notifications[address] if not n["read"])
+    return {"current_user": current_user, "unread_count": unread_count}
 
 
 # ── Routes ──────────────────────────────────────────────────────
@@ -622,6 +641,24 @@ def logout():
     return redirect("/")
 
 
+@app.route("/api/notifications")
+def api_notifications():
+    address = flask_session.get("address")
+    if not address:
+        return jsonify({"notifications": []})
+    user_notifs = notifications.get(address, [])
+    return jsonify({"notifications": user_notifs})
+
+
+@app.route("/api/notifications/read", methods=["POST"])
+def api_notifications_read():
+    address = flask_session.get("address")
+    if address and address in notifications:
+        for n in notifications[address]:
+            n["read"] = True
+    return jsonify({"success": True})
+
+
 
 # ── Event Creation ───────────────────────────────────────────────
 
@@ -647,18 +684,27 @@ def api_event_create():
     data = request.get_json()
 
     name = data.get("name", "").strip()
-    lat = data.get("lat")
-    lon = data.get("lon")
     scheduled_time = data.get("scheduled_time")
     participant_addresses = data.get("participant_addresses", [])
     organizer_address = data.get("organizer_address", flask_session.get("address", ""))
+    # Location suggestions (up to 3) — participants will vote
+    location_suggestions = data.get("location_suggestions", [])
 
-    if not all([name, lat is not None, lon is not None, scheduled_time]):
-        return jsonify({"error": "Missing required fields"}), 400
+    if not all([name, scheduled_time]):
+        return jsonify({"error": "Missing event name or scheduled time"}), 400
     if len(participant_addresses) < 2:
         return jsonify({"error": "At least 2 participants required"}), 400
     if len(participant_addresses) != len(set(participant_addresses)):
         return jsonify({"error": "Duplicate participants selected"}), 400
+    if not location_suggestions or len(location_suggestions) == 0:
+        return jsonify({"error": "Add at least 1 location suggestion"}), 400
+    if len(location_suggestions) > 3:
+        location_suggestions = location_suggestions[:3]
+
+    # Validate each location has name, lat, lon
+    for loc in location_suggestions:
+        if not loc.get("name") or loc.get("lat") is None or loc.get("lon") is None:
+            return jsonify({"error": "Each location needs a name and coordinates"}), 400
 
     # Look up names — no balance check at creation (each person sets their own stake)
     participants = []
@@ -670,19 +716,86 @@ def api_event_create():
                 break
         participants.append({"name": label, "address": addr, "committed": False, "stake": None})
 
+    # Build location options with empty vote lists
+    locations = []
+    for i, loc in enumerate(location_suggestions):
+        locations.append({
+            "id": i,
+            "name": loc["name"],
+            "lat": float(loc["lat"]),
+            "lon": float(loc["lon"]),
+            "votes": [],  # list of voter addresses
+        })
+
     event_id = f"evt_{int(time.time() * 1000)}"
     active_events[event_id] = {
         "id": event_id,
         "name": name,
-        "lat": float(lat),
-        "lon": float(lon),
+        "lat": locations[0]["lat"],      # default to first suggestion
+        "lon": locations[0]["lon"],       # updated when voting concludes
+        "location_name": locations[0]["name"],
         "scheduled_time": float(scheduled_time),
         "organizer_address": organizer_address,
         "participants": participants,
+        "locations": locations,
         "checkins": {},
         "status": "pending",
     }
+    # Notify all participants
+    organizer_name = "Someone"
+    if wallets_data:
+        for n, d in wallets_data.items():
+            if d.get("address") == organizer_address:
+                organizer_name = n
+                break
+    for p in participants:
+        add_notification(
+            p["address"], "invite",
+            f"{organizer_name} invited you to \"{name}\"! Commit your stake to join.",
+            event_id,
+        )
+
     return jsonify({"success": True, "event_id": event_id, "participants": participants})
+
+
+@app.route("/api/event/<event_id>/vote", methods=["POST"])
+def api_event_vote(event_id):
+    """Vote for a preferred location."""
+    if event_id not in active_events:
+        return jsonify({"error": "Event not found"}), 400
+    ev = active_events[event_id]
+    data = request.get_json()
+    address = data.get("address")
+    location_id = data.get("location_id")
+
+    if address not in [p["address"] for p in ev["participants"]]:
+        return jsonify({"error": "You are not a participant"}), 400
+    if location_id is None:
+        return jsonify({"error": "Select a location"}), 400
+
+    locations = ev.get("locations", [])
+    target = next((l for l in locations if l["id"] == location_id), None)
+    if not target:
+        return jsonify({"error": "Location not found"}), 400
+
+    # Remove previous vote from this user (one vote per person)
+    for loc in locations:
+        if address in loc["votes"]:
+            loc["votes"].remove(address)
+    target["votes"].append(address)
+
+    # Update event location to the one with the most votes
+    winner = max(locations, key=lambda l: len(l["votes"]))
+    ev["lat"] = winner["lat"]
+    ev["lon"] = winner["lon"]
+    ev["location_name"] = winner["name"]
+
+    return jsonify({
+        "success": True,
+        "voted_for": target["name"],
+        "current_winner": winner["name"],
+        "votes": {l["name"]: len(l["votes"]) for l in locations},
+    })
 
 
 # ── Event Status ─────────────────────────────────────────────────
@@ -710,16 +823,34 @@ def event_status():
                 # Only reveal own stake — others' stakes are private
                 "my_stake": p["stake"] if addr == viewer_address else None,
             })
+        # Build location voting data
+        locs = []
+        my_vote = None
+        for loc in ev.get("locations", []):
+            vote_count = len(loc["votes"])
+            voted_by_me = viewer_address in loc["votes"]
+            if voted_by_me:
+                my_vote = loc["id"]
+            locs.append({
+                "id": loc["id"],
+                "name": loc["name"],
+                "votes": vote_count,
+                "voted_by_me": voted_by_me,
+            })
+
         events.append({
             "id": ev["id"],
             "name": ev["name"],
             "lat": ev["lat"],
             "lon": ev["lon"],
+            "location_name": ev.get("location_name", ""),
             "status": ev.get("status", "pending"),
             "organizer_address": ev.get("organizer_address", ""),
             "committed_count": committed_count,
             "total_count": total_count,
             "participants": ps,
+            "locations": locs,
+            "my_vote": my_vote,
             "scheduled_ms": int(ev["scheduled_time"] * 1000),
             "window_end_ms": int((ev["scheduled_time"] + config.GPS_WINDOW_MINUTES * 60) * 1000),
         })
@@ -763,6 +894,9 @@ def api_event_commit(event_id):
     data = request.get_json()
     address = data.get("address")
     stake_xrp = float(data.get("stake_xrp", 0))
+
+    if stake_xrp < config.MIN_STAKE_XRP:
+        return jsonify({"error": f"Minimum stake is {config.MIN_STAKE_XRP} XRP."}), 400
 
     ev = active_events[event_id]
     participant = next((p for p in ev["participants"] if p["address"] == address), None)

@@ -56,6 +56,9 @@ DEFAULT_BAG_XRP = 10           # Default bag for demo (small for testnet)
 GPS_RADIUS_FEET = 300       # Must be within 300ft of venue
 GPS_WINDOW_MINUTES = 31     # Check-in window opens at scheduled event time
 
+# ── Stake ───────────────────────────────────────────────────────
+MIN_STAKE_XRP = 10          # Minimum XRP stake per event commitment
+
 # ── Stripe ──────────────────────────────────────────────────────
 import os
 STRIPE_SECRET_KEY      = os.environ.get("STRIPE_SECRET_KEY", "")
