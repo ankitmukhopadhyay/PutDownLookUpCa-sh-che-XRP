@@ -3,9 +3,11 @@
 
 import json
 import time
+import traceback
 from xrpl.clients import JsonRpcClient
-from xrpl.wallet import generate_faucet_wallet
-from xrpl.models.transactions import TrustSet
+from xrpl.wallet import generate_faucet_wallet, Wallet
+from xrpl.models.transactions import TrustSet, Payment
+from xrpl.utils import xrp_to_drops
 from xrpl.models.amounts import IssuedCurrencyAmount
 from xrpl.models.requests import AccountLines
 from xrpl.transaction import submit_and_wait
@@ -20,11 +22,32 @@ def create_client():
 
 
 def create_funded_wallet(client, label="User"):
-    """Create a new wallet funded by the testnet faucet."""
+    """Create a new wallet funded by the testnet faucet (used for platform wallet init only)."""
     print(f"  Creating wallet for {label}...")
     wallet = generate_faucet_wallet(client, debug=True)
     print(f"  ✓ {label}: {wallet.address}")
     return wallet
+
+
+def create_user_wallet(client, platform_wallet, label="User"):
+    """
+    Create a new user wallet funded by the platform wallet (not the faucet).
+    Platform sends exactly the XRPL reserve needed to activate the wallet.
+    This replicates the mainnet flow where the platform covers activation.
+    """
+    RESERVE_XRP = 22  # 20 base + 2 for trust line object
+    print(f"  Creating wallet for {label} (funded by platform)...")
+    new_wallet = Wallet.create()
+    tx = Payment(
+        account=platform_wallet.address,
+        destination=new_wallet.address,
+        amount=xrp_to_drops(RESERVE_XRP),
+    )
+    submit_and_wait(tx, client, platform_wallet)
+    # Give the testnet a moment to fully index the new account
+    time.sleep(3)
+    print(f"  ✓ {label}: {new_wallet.address} (activated with {RESERVE_XRP} XRP reserve)")
+    return new_wallet
 
 
 def get_xrp_balance(client, address):

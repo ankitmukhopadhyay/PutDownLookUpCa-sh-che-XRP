@@ -8,99 +8,116 @@
 </head>
 <body>
     <div class="container">
-        <!-- Hero -->
-        <header class="hero">
-            <h1 class="logo">PUT UP</h1>
-            <p class="tagline">Stop flaking. Start pulling up.<br>Your reputation is on-chain.</p>
-        </header>
 
-        <!-- Search -->
-        <section class="search-section">
-            <form action="/profile/" method="get" id="search-form">
-                <input type="text" id="address-input" placeholder="Enter XRPL address to look up karma..."
-                       class="search-input" autocomplete="off">
-                <button type="submit" class="btn btn-gold">Look Up</button>
-            </form>
-        </section>
+    {% if not logged_in %}
+    <!-- ── AUTH GATE ─────────────────────────────────────────── -->
+    <header class="hero" style="padding-top: 60px; padding-bottom: 40px;">
+        <h1 class="logo">PUT UP</h1>
+        <p class="tagline">Stop flaking. Start pulling up.<br>Your reputation is on-chain.</p>
+    </header>
 
-        <!-- How it Works -->
-        <section class="card how-it-works">
-            <h2>How It Works</h2>
-            <div class="steps">
-                <div class="step">
-                    <span class="step-icon">🤝</span>
-                    <h3>1. Commit</h3>
-                    <p>Make plans with friends. Lock your "Bag" (XRP) in on-chain escrow to prove you're serious.</p>
-                </div>
-                <div class="step">
-                    <span class="step-icon">📍</span>
-                    <h3>2. Show Up</h3>
-                    <p>GPS check-in verifies who actually pulled up. 31-minute window, 300ft radius.</p>
-                </div>
-                <div class="step">
-                    <span class="step-icon">⚡</span>
-                    <h3>3. Earn or Burn</h3>
-                    <p>Show up = earn KARMA + get your bag back. Ghost = lose KARMA + lose your bag.</p>
-                </div>
+    <section style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 32px;">
+        <a href="/register" class="btn btn-gold" style="width: 100%; font-size: 18px; padding: 20px; text-align: center; text-decoration: none; display: block;">
+            Sign Up — Create Your Wallet
+        </a>
+        <a href="/login" class="btn btn-outline" style="width: 100%; font-size: 18px; padding: 20px; text-align: center; text-decoration: none; display: block;">
+            Log In
+        </a>
+    </section>
+
+    <section class="card how-it-works">
+        <h2>How It Works</h2>
+        <div class="steps">
+            <div class="step">
+                <span class="step-icon">🤝</span>
+                <h3>1. Commit</h3>
+                <p>Make plans with friends. Lock your XRP stake in on-chain escrow to prove you're serious.</p>
             </div>
-        </section>
-
-        <!-- Actions -->
-        <section class="card">
-            <h2>Get Started</h2>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <a href="/register" class="btn btn-gold">Create My Wallet</a>
-                <a href="/event/create" class="btn btn-outline">Create Event</a>
-                <a href="/event" class="btn btn-outline">Event Status</a>
-                <a href="/leaderboard" class="btn btn-outline">Leaderboard</a>
+            <div class="step">
+                <span class="step-icon">📍</span>
+                <h3>2. Show Up</h3>
+                <p>GPS check-in verifies who actually pulled up. 31-minute window, 300ft radius.</p>
             </div>
-        </section>
+            <div class="step">
+                <span class="step-icon">⚡</span>
+                <h3>3. Earn or Burn</h3>
+                <p>Show up = earn KARMA + get your bag back. Ghost = lose KARMA + lose your bag.</p>
+            </div>
+        </div>
+    </section>
 
-        <!-- Users -->
+    {% else %}
+    <!-- ── DASHBOARD ──────────────────────────────────────────── -->
+    <header class="header-bar">
+        <a href="/" class="logo-small">PUT UP</a>
+        <div style="display:flex; gap:6px; align-items:center;">
+            {% if current_user %}
+            <a href="/profile/{{ current_user.address }}" class="btn btn-outline btn-sm">{{ current_user.name }}</a>
+            {% endif %}
+            <a href="/logout" class="btn btn-outline btn-sm">Log Out</a>
+        </div>
+    </header>
+
+    {% if current_wallet %}
+    <section class="profile-hero" style="padding: 28px 0 16px;">
+        <div class="tier-badge">
+            <span class="tier-icon-large">{{ current_wallet.tier.icon }}</span>
+            <span class="tier-name">{{ current_wallet.tier.name }}</span>
+        </div>
+        <h1 class="karma-score">{{ current_wallet.karma|int }}</h1>
+        <p class="karma-label">YOUR KARMA</p>
+        <h2 class="profile-name">{{ current_wallet.label }}</h2>
+        <div style="display:flex; gap:8px; justify-content:center; margin-top:16px; flex-wrap:wrap;">
+            <a href="/profile/{{ current_wallet.address }}" class="btn btn-gold btn-sm">My Profile</a>
+            <a href="/event/create" class="btn btn-outline btn-sm">Create Event</a>
+            <a href="/event" class="btn btn-outline btn-sm">Event Status</a>
+            <a href="/leaderboard" class="btn btn-outline btn-sm">Leaderboard</a>
+        </div>
+    </section>
+    {% else %}
+    <section style="padding: 24px 0 8px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <a href="/event/create" class="btn btn-gold">Create Event</a>
+            <a href="/event" class="btn btn-outline">Event Status</a>
+            <a href="/leaderboard" class="btn btn-outline">Leaderboard</a>
+        </div>
+    </section>
+    {% endif %}
+
+    <section class="card" style="margin-top: 16px;">
+        <h2>Who's On PUT UP</h2>
         {% if users %}
-        <section class="card">
-            <h2>Profiles</h2>
-            <div class="user-grid">
-                {% for user in users %}
-                <a href="/profile/{{ user.address }}" class="user-card">
-                    <span class="user-label">{{ user.label }}</span>
-                    <span class="user-address">{{ user.address[:8] }}...{{ user.address[-6:] }}</span>
-                </a>
-                {% endfor %}
-            </div>
-        </section>
+        <div class="leaderboard" style="margin-top: 12px;">
+            {% for user in users %}
+            <a href="/profile/{{ user.address }}" class="leaderboard-row" style="{% if current_wallet and user.address == current_wallet.address %}border-left: 3px solid var(--gold);{% endif %}">
+                <span class="rank">
+                    {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}#{{ loop.index }}{% endif %}
+                </span>
+                <span class="lb-tier-icon">{{ user.tier.icon }}</span>
+                <div class="lb-info">
+                    <span class="lb-name">
+                        {{ user.label }}
+                        {% if current_wallet and user.address == current_wallet.address %}<span style="color:var(--gold);font-size:11px;"> (you)</span>{% endif %}
+                    </span>
+                    <span class="lb-address">{{ user.address[:8] }}...{{ user.address[-6:] }}</span>
+                </div>
+                <div class="lb-score">
+                    <span class="lb-karma">{{ user.karma|int }} KRM</span>
+                    <span style="color:var(--sub);font-size:12px;">{{ user.balance }} XRP</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="sub-text" style="margin-top: 8px;">No other users yet. Share the app to get people signed up!</p>
         {% endif %}
+    </section>
 
-        <!-- Blockchain Info -->
-        <section class="card">
-            <h2>Powered by XRPL</h2>
-            <p class="sub-text">
-                All reputation data and escrow transactions live on the
-                <strong>XRP Ledger Testnet</strong> — transparent, immutable, verifiable.
-                Every karma award, every ghost penalty, every bag lock is a real blockchain transaction.
-            </p>
-            <div class="xrpl-features">
-                <span class="feature-tag">XRP Escrow</span>
-                <span class="feature-tag">KRM Issued Token</span>
-                <span class="feature-tag">Trust Lines</span>
-                <span class="feature-tag">On-Chain Memos</span>
-            </div>
-        </section>
+    {% endif %}
 
         <footer>
             <p>PUT UP LLC &mdash; RippleX USF Hackathon 2026</p>
         </footer>
     </div>
-
-    <script src="/static/app.js"></script>
-    <script>
-        document.getElementById('search-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const address = document.getElementById('address-input').value.trim();
-            if (address) {
-                window.location.href = '/profile/' + address;
-            }
-        });
-    </script>
 </body>
 </html>

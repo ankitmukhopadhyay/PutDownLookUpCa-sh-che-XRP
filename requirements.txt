@@ -1,2 +1,4 @@
 xrpl-py>=3.0.0
 flask>=3.0.0
+stripe>=7.0.0
+python-dotenv>=1.0.0

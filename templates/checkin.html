@@ -23,11 +23,30 @@
 <body>
     <div class="container">
         <header class="header-bar">
+            <a href="/event" class="btn btn-outline btn-sm">← Event</a>
             <a href="/" class="logo-small">PUT UP</a>
-            <a href="/event" class="btn btn-outline btn-sm">Event Status</a>
+            {% if current_user %}
+            <div style="display:flex;gap:6px;align-items:center;">
+                <a href="/profile/{{ current_user.address }}" class="btn btn-outline btn-sm">{{ current_user.name }}</a>
+                <a href="/logout" class="btn btn-outline btn-sm">Log Out</a>
+            </div>
+            {% else %}
+            <a href="/login" class="btn btn-gold btn-sm">Log In</a>
+            {% endif %}
         </header>
 
-        {% if not event %}
+        {% if select_event %}
+        <section class="card" style="margin-top: 24px;">
+            <h2>Choose Event to Check In</h2>
+            <p class="sub-text" style="margin-bottom: 16px;">You're part of multiple active events.</p>
+            {% for ev in user_events %}
+            <a href="/checkin/{{ address }}?event_id={{ ev.id }}" class="btn btn-gold" style="width:100%; display:block; margin-bottom:10px;">
+                {{ ev.name }}
+            </a>
+            {% endfor %}
+        </section>
+
+        {% elif not event %}
         <section class="card" style="text-align: center; margin-top: 40px;">
             <p style="font-size: 48px; margin-bottom: 16px;">📭</p>
             <h2>No Active Event</h2>
@@ -86,7 +105,7 @@
 
         <section class="card" style="text-align: center;">
             <button id="checkin-btn" class="btn btn-gold" style="width: 100%; font-size: 18px; padding: 18px;" disabled
-                    onclick="doCheckin('{{ address }}')">
+                    onclick="doCheckin('{{ address }}', '{{ event.id }}')">
                 📍 Check In Now
             </button>
             <p class="sub-text" style="margin-top: 10px;" id="btn-hint">Button unlocks when the event starts.</p>

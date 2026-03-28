@@ -56,5 +56,11 @@ DEFAULT_BAG_XRP = 10           # Default bag for demo (small for testnet)
 GPS_RADIUS_FEET = 300       # Must be within 300ft of venue
 GPS_WINDOW_MINUTES = 31     # Check-in window opens at scheduled event time
 
+# ── Stripe ──────────────────────────────────────────────────────
+import os
+STRIPE_SECRET_KEY      = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
+USD_PER_XRP            = 2.0   # $2 per XRP (demo rate)
+
 # ── Wallet Data File ────────────────────────────────────────────
 WALLETS_FILE = "wallets.json"

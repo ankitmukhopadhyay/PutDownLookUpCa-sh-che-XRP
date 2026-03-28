@@ -10,84 +10,89 @@
         .form-label { display: block; font-size: 13px; color: var(--sub); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
         .form-input { width: 100%; background: var(--dark); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; color: var(--text); font-size: 14px; outline: none; }
         .form-input:focus { border-color: var(--gold); }
+        select.form-input { cursor: pointer; }
         .coord-display { font-size: 12px; color: var(--positive); margin-top: 6px; min-height: 18px; font-family: monospace; }
         .cost-row { display: flex; align-items: center; gap: 10px; }
         .cost-row .form-input { max-width: 130px; font-size: 20px; font-weight: 800; text-align: right; color: var(--gold); }
         .cost-unit { color: var(--sub); font-size: 14px; }
-        .cost-usd { color: var(--sub); font-size: 13px; }
         .participant-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
         .participant-badge { width: 26px; min-width: 26px; height: 26px; background: var(--gold-dim); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: var(--gold); }
-        .participant-row .form-input { flex: 1; }
-        .count-row { display: flex; align-items: center; gap: 12px; }
-        .count-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
-        .count-btn:hover { border-color: var(--gold); color: var(--gold); }
-        .count-val { font-size: 24px; font-weight: 900; color: var(--gold); min-width: 32px; text-align: center; }
+        .participant-row select { flex: 1; }
+        .remove-btn { background: transparent; border: 1px solid var(--border); color: var(--sub); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 16px; line-height: 1; }
+        .remove-btn:hover { border-color: var(--negative); color: var(--negative); }
+        .empty-state { color: var(--sub); font-size: 13px; padding: 12px 0; }
     </style>
 </head>
 <body>
     <div class="container">
         <header class="header-bar">
+            <a href="/" class="btn btn-outline btn-sm">← Home</a>
             <a href="/" class="logo-small">PUT UP</a>
-            <a href="/event" class="btn btn-outline btn-sm">Event Status</a>
+            {% if current_user %}
+            <div style="display:flex;gap:6px;align-items:center;">
+                <a href="/profile/{{ current_user.address }}" class="btn btn-outline btn-sm">{{ current_user.name }}</a>
+                <a href="/logout" class="btn btn-outline btn-sm">Log Out</a>
+            </div>
+            {% else %}
+            <a href="/login" class="btn btn-gold btn-sm">Log In</a>
+            {% endif %}
         </header>
 
         <section class="profile-hero" style="padding-bottom: 0;">
             <h1 class="page-title">Create a Put Up</h1>
-            <p class="sub-text" style="margin-top: 8px;">Set the stakes. Wallets are created automatically for each participant.</p>
+            <p class="sub-text" style="margin-top: 8px;">Participants must <a href="/register" style="color:var(--gold);">register first</a> to appear in the dropdown.</p>
         </section>
 
         <section class="card" style="margin-top: 24px;">
 
             <div class="form-group">
-                <label class="form-label" for="event-name">Event Name</label>
+                <label class="form-label">Event Name</label>
                 <input type="text" id="event-name" class="form-input" placeholder="e.g. Coffee at Blue Star" maxlength="50">
             </div>
 
             <div class="form-group">
-                <label class="form-label" for="event-time">Scheduled Start Time</label>
+                <label class="form-label">Scheduled Start Time</label>
                 <input type="datetime-local" id="event-time" class="form-input">
             </div>
 
             <div class="form-group">
                 <label class="form-label">Cost of Event (Stakes per Person)</label>
                 <div class="cost-row">
-                    <input type="number" id="deposit-xrp" class="form-input" value="10" min="0" max="500" step="1">
+                    <input type="number" id="deposit-xrp" class="form-input" value="0" min="0" max="500" step="1">
                     <span class="cost-unit">XRP</span>
-                    <span class="cost-usd" id="deposit-usd">≈ $20 USD</span>
+                    <span class="cost-unit" id="deposit-usd" style="color:var(--sub);">(no stakes)</span>
                 </div>
-                <p class="sub-text" style="margin-top: 6px;">Set to 0 for a no-stakes event (karma only). Show up = get it back. Ghost = lose it.</p>
+                <p class="sub-text" style="margin-top: 6px;">0 = karma only. Show up = get it back. Ghost = lose it.</p>
             </div>
 
             <div class="form-group">
-                <label class="form-label">Number of Participants</label>
-                <div class="count-row">
-                    <button class="count-btn" onclick="changeCount(-1)">−</button>
-                    <span class="count-val" id="count-display">2</span>
-                    <button class="count-btn" onclick="changeCount(1)">+</button>
-                    <span class="cost-unit">people</span>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Participant Names</label>
+                <label class="form-label">Participants</label>
+                {% if users %}
                 <div id="participants-list"></div>
-                <p class="sub-text" style="margin-top: 6px;">New XRPL wallets will be created for each person (~15s per wallet).</p>
+                <button type="button" class="btn btn-outline" style="margin-top: 8px; width: 100%;" onclick="addParticipant()">
+                    + Add Participant
+                </button>
+                <p class="sub-text" style="margin-top: 8px;">Need at least 2. Don't see someone? They need to <a href="/register" style="color:var(--gold);">register first</a>.</p>
+                {% else %}
+                <div class="card" style="background:var(--dark); text-align:center;">
+                    <p class="sub-text">No registered users yet. <a href="/register" style="color:var(--gold);">Register here</a> first.</p>
+                </div>
+                {% endif %}
             </div>
 
             <div class="form-group">
-                <label class="form-label">Venue Location</label>
-                <button id="use-location-btn" class="btn btn-outline" style="width: 100%;" onclick="useMyLocation()">
-                    📍 Use My Current Location
-                </button>
+                <label class="form-label">Venue</label>
+                <input type="text" id="venue-search" class="form-input" placeholder="Search for a place (e.g. Blue Star Coffee, Tampa)" autocomplete="off">
+                <div id="venue-results" style="background:var(--dark);border:1px solid var(--border);border-radius:12px;margin-top:4px;display:none;"></div>
                 <p id="coord-display" class="coord-display"></p>
                 <input type="hidden" id="lat-input">
                 <input type="hidden" id="lon-input">
             </div>
 
-            <button id="create-btn" class="btn btn-gold" style="width: 100%; margin-top: 8px; font-size: 16px; padding: 16px;" onclick="createEvent()">
-                Create Event &amp; Wallets
+            <button id="create-btn" class="btn btn-gold" style="width:100%; margin-top:8px; font-size:16px; padding:16px;">
+                Create Event
             </button>
-            <div id="create-result" class="sim-result hidden" style="margin-top: 12px;"></div>
+            <div id="create-result" class="sim-result hidden" style="margin-top:12px;"></div>
         </section>
 
         <footer>
@@ -95,48 +100,209 @@
         </footer>
     </div>
 
-    <script src="/static/app.js"></script>
     <script>
-        // Default datetime to 5 minutes from now
+        const USERS = {{ users | tojson }};
+
+        // Default datetime to 5 min from now
         const d = new Date(Date.now() + 5 * 60 * 1000);
         d.setSeconds(0);
         document.getElementById('event-time').value = d.toISOString().slice(0, 16);
 
-        // Live USD estimate ($2/XRP demo rate)
         document.getElementById('deposit-xrp').addEventListener('input', function() {
             const val = parseFloat(this.value) || 0;
             document.getElementById('deposit-usd').textContent = val === 0 ? '(no stakes)' : `≈ $${(val * 2).toFixed(0)} USD`;
+            refreshAllDropdowns();
         });
 
-        // Participant count
-        let participantCount = 2;
-        const LABELS = ['A','B','C','D','E','F'];
+        // Venue search using OpenStreetMap Nominatim
+        let venueTimeout;
+        document.getElementById('venue-search').addEventListener('input', function() {
+            clearTimeout(venueTimeout);
+            const q = this.value.trim();
+            const resultsEl = document.getElementById('venue-results');
+            if (q.length < 3) { resultsEl.style.display = 'none'; return; }
+            venueTimeout = setTimeout(async function() {
+                try {
+                    const resp = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`);
+                    const places = await resp.json();
+                    if (!places.length) { resultsEl.style.display = 'none'; return; }
+                    resultsEl.style.display = 'block';
+                    resultsEl.innerHTML = places.map(p =>
+                        `<div style="padding:12px 16px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;"
+                              onmouseover="this.style.background='var(--card)'" onmouseout="this.style.background=''"
+                              onclick="selectVenue('${p.lat}','${p.lon}',\`${p.display_name.replace(/`/g,"'")}\`)">
+                            📍 ${p.display_name}
+                         </div>`
+                    ).join('');
+                } catch(e) {}
+            }, 400);
+        });
 
-        function renderParticipants() {
+        function selectVenue(lat, lon, name) {
+            document.getElementById('lat-input').value = parseFloat(lat).toFixed(6);
+            document.getElementById('lon-input').value = parseFloat(lon).toFixed(6);
+            document.getElementById('venue-search').value = name;
+            document.getElementById('venue-results').style.display = 'none';
+            document.getElementById('coord-display').textContent = `📍 ${parseFloat(lat).toFixed(5)}, ${parseFloat(lon).toFixed(5)}`;
+            document.getElementById('coord-display').style.color = 'var(--positive)';
+        }
+
+        function getStake() {
+            return parseFloat(document.getElementById('deposit-xrp').value) || 0;
+        }
+
+        function getSelectedAddresses(excluding) {
+            return Array.from(document.querySelectorAll('.participant-select'))
+                .filter(s => s !== excluding)
+                .map(s => s.value)
+                .filter(Boolean);
+        }
+
+        function refreshAllDropdowns() {
+            const stake = getStake();
+            document.querySelectorAll('.participant-select').forEach(sel => {
+                const otherSelected = getSelectedAddresses(sel);
+                const current = sel.value;
+                sel.innerHTML = '<option value="">— Select user —</option>' +
+                    USERS.map(u => {
+                        const alreadyPicked = otherSelected.includes(u.address);
+                        const canAfford = stake === 0 || u.balance >= stake;
+                        let label = u.display;
+                        let disabled = '';
+                        if (alreadyPicked) { label += ' (already added)'; disabled = 'disabled'; }
+                        else if (!canAfford) { label += ` — needs ${(stake - u.balance).toFixed(1)} more XRP`; disabled = 'disabled'; }
+                        const selected = u.address === current ? 'selected' : '';
+                        return `<option value="${u.address}" ${disabled} ${selected}>${label}</option>`;
+                    }).join('');
+                // If current selection became invalid, clear it
+                if (current && sel.value !== current) {
+                    sel.value = '';
+                    showRowError(sel, `This user can't afford the ${stake} XRP stake.`);
+                }
+            });
+        }
+
+        function showRowError(sel, msg) {
+            const row = sel.closest('.participant-row');
+            let err = row.querySelector('.row-error');
+            if (!err) {
+                err = document.createElement('span');
+                err.className = 'row-error';
+                err.style.cssText = 'color:var(--negative);font-size:12px;margin-left:6px;';
+                row.appendChild(err);
+            }
+            err.textContent = msg;
+            setTimeout(() => { err.textContent = ''; }, 3000);
+        }
+
+        function addParticipant() {
             const list = document.getElementById('participants-list');
-            // Preserve existing values
-            const existing = Array.from(list.querySelectorAll('.participant-name')).map(i => i.value);
-            list.innerHTML = '';
-            for (let i = 0; i < participantCount; i++) {
-                const row = document.createElement('div');
-                row.className = 'participant-row';
-                row.innerHTML = `
-                    <span class="participant-badge">${LABELS[i]}</span>
-                    <input type="text" class="form-input participant-name"
-                           placeholder="Participant ${i+1} name..." maxlength="20"
-                           value="${existing[i] || ''}">
-                `;
-                list.appendChild(row);
+            if (list.children.length >= 6) return;
+
+            const row = document.createElement('div');
+            row.className = 'participant-row';
+
+            const sel = document.createElement('select');
+            sel.className = 'form-input participant-select';
+
+            sel.addEventListener('change', function() {
+                const stake = getStake();
+                const addr = this.value;
+                if (!addr) { refreshAllDropdowns(); return; }
+                const user = USERS.find(u => u.address === addr);
+                if (user && stake > 0 && user.balance < stake) {
+                    showRowError(this, `Only ${user.balance} XRP — need ${stake} XRP`);
+                    this.value = '';
+                }
+                refreshAllDropdowns();
+            });
+
+            const btn = document.createElement('button');
+            btn.className = 'remove-btn';
+            btn.textContent = '×';
+            btn.onclick = function() { row.remove(); refreshAllDropdowns(); };
+
+            row.appendChild(sel);
+            row.appendChild(btn);
+            list.appendChild(row);
+            refreshAllDropdowns();
+        }
+
+        async function createEvent() {
+            const resultDiv = document.getElementById('create-result');
+            const createBtn = document.getElementById('create-btn');
+
+            function showError(msg) {
+                resultDiv.classList.remove('hidden');
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = `<span style="color:#e05252;font-weight:700">${msg}</span>`;
+                resultDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            try {
+                const name = document.getElementById('event-name').value.trim();
+                const datetimeVal = document.getElementById('event-time').value;
+                const depositXrp = parseFloat(document.getElementById('deposit-xrp').value) || 0;
+                const lat = document.getElementById('lat-input').value;
+                const lon = document.getElementById('lon-input').value;
+
+                const participantAddresses = Array.from(document.querySelectorAll('.participant-select'))
+                    .map(s => s.value).filter(Boolean);
+
+                if (!name) { showError('Enter an event name.'); return; }
+                if (!datetimeVal) { showError('Set a scheduled start time.'); return; }
+                if (participantAddresses.length < 2) { showError('Add at least 2 participants.'); return; }
+                if (new Set(participantAddresses).size !== participantAddresses.length) {
+                    showError('Each participant can only be added once.'); return;
+                }
+                if (!lat || !lon) { showError('Set the venue location first — click "Use My Current Location".'); return; }
+
+                if (depositXrp > 0) {
+                    for (const addr of participantAddresses) {
+                        const user = USERS.find(u => u.address === addr);
+                        if (user && user.balance < depositXrp) {
+                            showError(`${user.label} only has ${user.balance} XRP — not enough for ${depositXrp} XRP stake.`);
+                            return;
+                        }
+                    }
+                }
+
+                const scheduledTime = new Date(datetimeVal).getTime() / 1000;
+                createBtn.textContent = 'Creating...';
+                createBtn.disabled = true;
+                resultDiv.classList.remove('hidden');
+                resultDiv.style.display = 'block';
+                resultDiv.textContent = 'Creating event...';
+
+                const resp = await fetch('/api/event/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        lat: parseFloat(lat),
+                        lon: parseFloat(lon),
+                        scheduled_time: scheduledTime,
+                        deposit_xrp: depositXrp,
+                        participant_addresses: participantAddresses,
+                    }),
+                });
+                const data = await resp.json();
+                if (data.error) {
+                    showError(data.error);
+                    createBtn.disabled = false;
+                    createBtn.textContent = 'Create Event';
+                } else {
+                    window.location.href = '/event';
+                }
+            } catch (e) {
+                showError('Error: ' + e.message);
+                createBtn.disabled = false;
+                createBtn.textContent = 'Create Event';
             }
         }
 
-        function changeCount(delta) {
-            participantCount = Math.max(2, Math.min(6, participantCount + delta));
-            document.getElementById('count-display').textContent = participantCount;
-            renderParticipants();
-        }
-
-        renderParticipants();
+        document.getElementById('create-btn').addEventListener('click', createEvent);
     </script>
+    <script src="/static/app.js"></script>
 </body>
 </html>

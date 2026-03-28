@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Event Status — PUT UP</title>
+    <title>Events — PUT UP</title>
     <link rel="stylesheet" href="/static/style.css">
     <style>
         .participant-card {
@@ -22,89 +22,86 @@
         .participant-detail { font-size: 12px; color: var(--sub); margin-top: 2px; }
         .status-icon { font-size: 32px; margin-left: 12px; }
         .event-meta { font-size: 13px; color: var(--sub); margin-bottom: 6px; }
-        .countdown-display { font-size: 28px; font-weight: 900; color: var(--gold); margin: 8px 0; }
+        .countdown-display { font-size: 24px; font-weight: 900; color: var(--gold); margin: 6px 0; }
+        .event-block { border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 24px; background: var(--card); }
+        .event-title { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
     </style>
 </head>
 <body>
     <div class="container">
         <header class="header-bar">
+            <a href="/" class="btn btn-outline btn-sm">← Home</a>
             <a href="/" class="logo-small">PUT UP</a>
-            <div style="display: flex; gap: 8px;">
-                <a href="/event/create" class="btn btn-outline btn-sm">New Event</a>
-                <a href="/leaderboard" class="btn btn-outline btn-sm">Leaderboard</a>
+            {% if current_user %}
+            <div style="display:flex;gap:6px;align-items:center;">
+                <a href="/profile/{{ current_user.address }}" class="btn btn-outline btn-sm">{{ current_user.name }}</a>
+                <a href="/logout" class="btn btn-outline btn-sm">Log Out</a>
             </div>
+            {% else %}
+            <a href="/login" class="btn btn-gold btn-sm">Log In</a>
+            {% endif %}
         </header>
 
-        {% if not event %}
-        <section class="card" style="text-align: center; margin-top: 40px;">
+        <section class="profile-hero" style="padding-bottom: 0; margin-bottom: 16px;">
+            <h1 class="page-title">Active Events</h1>
+        </section>
+
+        {% if not events %}
+        <section class="card" style="text-align: center; margin-top: 24px;">
             <p style="font-size: 48px; margin-bottom: 16px;">🏁</p>
-            <h2>No Active Event</h2>
+            <h2>No Active Events</h2>
             <p class="sub-text" style="margin: 12px 0 20px;">Create an event to get started.</p>
             <a href="/event/create" class="btn btn-gold">Create Event</a>
         </section>
 
         {% else %}
-        <section class="card" style="margin-top: 24px;">
-            <h2>{{ event.name }}</h2>
-            <p class="event-meta">Starts: <span id="scheduled-display">...</span></p>
-            <p class="event-meta">Location: {{ "%.4f"|format(event.lat) }}, {{ "%.4f"|format(event.lon) }}</p>
-            <div id="window-status" style="font-size: 14px; font-weight: 700; margin-top: 6px;"></div>
-            <div id="countdown" class="countdown-display"></div>
-        </section>
 
-        <section class="card">
-            <h2>Participants</h2>
-            {% for p in participants %}
+        {% for event in events %}
+        <div class="event-block">
+            <div class="event-title">{{ event.name }}</div>
+            <p class="event-meta">Starts: <span id="sched-{{ event.id }}">...</span></p>
+            {% if event.deposit_xrp > 0 %}
+            <p class="event-meta">Stake: {{ event.deposit_xrp }} XRP per person</p>
+            {% else %}
+            <p class="event-meta">Karma only (no XRP stake)</p>
+            {% endif %}
+            <div id="status-{{ event.id }}" style="font-size: 14px; font-weight: 700; margin-top: 4px;"></div>
+            <div id="cd-{{ event.id }}" class="countdown-display"></div>
+
+            <h3 style="margin: 16px 0 8px;">Participants</h3>
+            {% for p in event.participants %}
             <div class="participant-card {% if p.checked_in %}checked{% endif %}">
                 <div class="participant-info">
                     <div class="participant-name">{{ p.label }}</div>
                     {% if p.checked_in %}
                     <div class="participant-detail" style="color: var(--positive);">
-                        Checked in — {{ p.distance_ft }}ft from venue, {{ p.elapsed_min }} min into window
+                        Checked in — {{ p.distance_ft }}ft away, {{ p.elapsed_min }} min into window
                     </div>
                     {% else %}
-                    <div class="participant-detail">
-                        Check-in link:
-                        <span style="font-family: monospace; font-size: 11px; color: var(--gold);">
-                            {{ base_url }}/checkin/{{ p.address }}
-                        </span>
+                    <div class="participant-detail" style="margin-top: 6px;">
+                        <a href="/checkin/{{ p.address }}?event_id={{ event.id }}" class="btn btn-outline btn-sm">Open Check-in →</a>
                     </div>
-                    <div class="participant-detail" style="margin-top: 4px;">
-                        <a href="/checkin/{{ p.address }}" class="btn btn-outline btn-sm" style="display:inline-block">Open Check-in →</a>
+                    <div class="participant-detail" style="margin-top: 4px; font-family: monospace; font-size: 11px; color: var(--gold); word-break: break-all;">
+                        {{ base_url }}/checkin/{{ p.address }}?event_id={{ event.id }}
                     </div>
                     {% endif %}
                 </div>
                 <div class="status-icon">{{ '✅' if p.checked_in else '⏳' }}</div>
             </div>
             {% endfor %}
-        </section>
 
-        <section class="card" style="background: var(--dark); border-color: rgba(201,168,76,0.3);">
-            <h2>Share with Participants</h2>
-            <p class="sub-text" style="margin-bottom: 12px;">Anyone on the same WiFi can open these links on their phone:</p>
-            {% for p in participants %}
-            {% if not p.checked_in %}
-            <div style="margin-bottom: 8px;">
-                <span style="font-weight: 700;">{{ p.label }}:</span><br>
-                <span style="font-family: monospace; font-size: 12px; color: var(--gold); word-break: break-all;">
-                    {{ base_url }}/checkin/{{ p.address }}
-                </span>
-            </div>
-            {% endif %}
-            {% endfor %}
-        </section>
-
-        <section class="card">
-            <h2>Resolve</h2>
-            <p class="sub-text" style="margin-bottom: 16px;">
-                Once the window closes (or both have checked in), resolve the Put Up to trigger
-                XRPL escrow payouts and karma updates.
-            </p>
-            <button id="resolve-btn" class="btn btn-gold" style="width: 100%;" onclick="resolveEvent()">
+            <button class="btn btn-gold" style="width: 100%; margin-top: 12px;"
+                    onclick="resolveEvent('{{ event.id }}', this)">
                 Resolve Now (XRPL)
             </button>
-            <div id="resolve-result" class="sim-result hidden" style="margin-top: 12px;"></div>
-        </section>
+            <div id="resolve-result-{{ event.id }}" class="sim-result hidden" style="margin-top: 12px;"></div>
+        </div>
+        {% endfor %}
+
+        <div style="text-align: center; margin-bottom: 24px;">
+            <a href="/event/create" class="btn btn-outline">+ Create Another Event</a>
+        </div>
+
         {% endif %}
 
         <footer>
@@ -113,42 +110,44 @@
     </div>
 
     <script src="/static/app.js"></script>
-    {% if event %}
+    {% if events %}
     <script>
-        const scheduledMs = {{ scheduled_ms }};
-        const windowEndMs = {{ window_end_ms }};
-        const now = Date.now();
+        const EVENTS = {{ events | tojson }};
+        EVENTS.forEach(function(ev) {
+            const scheduledMs = ev.scheduled_ms;
+            const windowEndMs = ev.window_end_ms;
+            const now = Date.now();
 
-        document.getElementById('scheduled-display').textContent =
-            new Date(scheduledMs).toLocaleString();
+            document.getElementById('sched-' + ev.id).textContent =
+                new Date(scheduledMs).toLocaleString();
 
-        const windowStatus = document.getElementById('window-status');
+            const statusEl = document.getElementById('status-' + ev.id);
+            const cdEl = document.getElementById('cd-' + ev.id);
 
-        if (now >= windowEndMs) {
-            windowStatus.textContent = 'Window closed';
-            windowStatus.style.color = 'var(--negative)';
-            document.getElementById('countdown').textContent = '';
-        } else if (now >= scheduledMs) {
-            windowStatus.textContent = 'Window is open!';
-            windowStatus.style.color = 'var(--positive)';
-            startCountdown(windowEndMs, 'countdown', function() {
-                windowStatus.textContent = 'Window closed';
-                windowStatus.style.color = 'var(--negative)';
-                document.getElementById('countdown').textContent = '';
-            });
-        } else {
-            windowStatus.textContent = 'Waiting for event start';
-            windowStatus.style.color = 'var(--sub)';
-            startOpenCountdown(scheduledMs, 'countdown', function() {
-                windowStatus.textContent = 'Window is open!';
-                windowStatus.style.color = 'var(--positive)';
-                startCountdown(windowEndMs, 'countdown', function() {
-                    windowStatus.textContent = 'Window closed';
-                    windowStatus.style.color = 'var(--negative)';
-                    document.getElementById('countdown').textContent = '';
+            function setStatus(text, color) {
+                statusEl.textContent = text;
+                statusEl.style.color = color;
+            }
+
+            if (now >= windowEndMs) {
+                setStatus('Window closed', 'var(--negative)');
+            } else if (now >= scheduledMs) {
+                setStatus('Window is open!', 'var(--positive)');
+                startCountdown(windowEndMs, 'cd-' + ev.id, function() {
+                    setStatus('Window closed', 'var(--negative)');
+                    cdEl.textContent = '';
                 });
-            });
-        }
+            } else {
+                setStatus('Waiting for event start', 'var(--sub)');
+                startOpenCountdown(scheduledMs, 'cd-' + ev.id, function() {
+                    setStatus('Window is open!', 'var(--positive)');
+                    startCountdown(windowEndMs, 'cd-' + ev.id, function() {
+                        setStatus('Window closed', 'var(--negative)');
+                        cdEl.textContent = '';
+                    });
+                });
+            }
+        });
     </script>
     {% endif %}
 </body>

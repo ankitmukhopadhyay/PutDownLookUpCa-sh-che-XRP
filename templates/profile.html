@@ -9,8 +9,16 @@
 <body>
     <div class="container">
         <header class="header-bar">
+            <a href="/" class="btn btn-outline btn-sm">← Home</a>
             <a href="/" class="logo-small">PUT UP</a>
-            <a href="/leaderboard" class="btn btn-outline btn-sm">Leaderboard</a>
+            {% if current_user %}
+            <div style="display:flex;gap:6px;align-items:center;">
+                <a href="/leaderboard" class="btn btn-outline btn-sm">Leaderboard</a>
+                <a href="/logout" class="btn btn-outline btn-sm">Log Out</a>
+            </div>
+            {% else %}
+            <a href="/login" class="btn btn-gold btn-sm">Log In</a>
+            {% endif %}
         </header>
 
         <!-- Karma Score Hero -->
@@ -30,8 +38,8 @@
         <!-- Stats Row -->
         <section class="stats-row">
             <div class="stat-card">
-                <span class="stat-value">{{ xrp|round(2) }}</span>
-                <span class="stat-label">XRP Balance</span>
+                <span class="stat-value">{{ balance|round(2) }}</span>
+                <span class="stat-label">PUT UP Balance</span>
             </div>
             <div class="stat-card">
                 <span class="stat-value">{{ total }}</span>
@@ -61,6 +69,24 @@
             </div>
         </section>
         {% endif %}
+
+        <!-- Add Funds -->
+        <section class="card">
+            <h2>Add Funds</h2>
+            <p class="sub-text" style="margin-bottom: 12px;">Current balance: <strong style="color:var(--gold)">{{ balance|default(0) }} XRP</strong></p>
+            {% set topped_up = request.args.get('topped_up') %}
+            {% if topped_up %}
+            <p style="color:var(--positive); margin-bottom: 12px;">+{{ topped_up }} XRP added successfully!</p>
+            {% endif %}
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+                <input type="number" id="topup-amount" value="10" min="1" max="500" step="1"
+                       style="width: 120px; background: var(--dark); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; color: var(--gold); font-size: 20px; font-weight: 800; text-align: right; outline: none;">
+                <span style="color: var(--sub); font-size: 14px;">XRP</span>
+                <span id="topup-usd" style="color: var(--sub); font-size: 13px;">≈ $20 USD</span>
+            </div>
+            <button class="btn btn-gold" style="width:100%;" onclick="addFunds('{{ address }}')">Add Funds via Stripe</button>
+            <div id="topup-result" class="sim-result hidden"></div>
+        </section>
 
         <!-- GPS Check-In -->
         <section class="card" style="text-align: center;">
@@ -136,5 +162,14 @@
     </div>
 
     <script src="/static/app.js"></script>
+    <script>
+        const topupInput = document.getElementById('topup-amount');
+        if (topupInput) {
+            topupInput.addEventListener('input', function() {
+                const val = parseFloat(this.value) || 0;
+                document.getElementById('topup-usd').textContent = `≈ $${(val * 2).toFixed(0)} USD`;
+            });
+        }
+    </script>
 </body>
 </html>

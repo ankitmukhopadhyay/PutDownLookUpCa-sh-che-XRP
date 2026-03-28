@@ -8,7 +8,17 @@ function getLocation() {
             reject(new Error('Geolocation is not supported by this browser'));
             return;
         }
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
+        // Try high accuracy first, fall back to low accuracy if unavailable
+        navigator.geolocation.getCurrentPosition(resolve, function(err) {
+            if (err.code === err.POSITION_UNAVAILABLE) {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: false,
+                    timeout: 15000,
+                });
+            } else {
+                reject(err);
+            }
+        }, {
             enableHighAccuracy: true,
             timeout: 10000,
         });
@@ -40,101 +50,83 @@ async function registerUser() {
     const name = document.getElementById('name-input').value.trim();
     if (!name) { alert('Enter your name.'); return; }
 
+    const email = document.getElementById('email-input')?.value.trim() || '';
+    if (!email || !email.includes('@')) { alert('Enter a valid email address.'); return; }
+
+    const password = document.getElementById('password-input')?.value || '';
+    if (password.length < 6) { alert('Password must be at least 6 characters.'); return; }
+
+    const depositXrp = parseFloat(document.getElementById('deposit-input')?.value) || 0;
+    if (depositXrp <= 0) { alert('Enter a deposit amount greater than 0.'); return; }
+
     const btn = document.getElementById('register-btn');
     const resultDiv = document.getElementById('register-result');
     btn.disabled = true;
-    btn.textContent = 'Creating wallet...';
+    btn.textContent = 'Redirecting to payment...';
     resultDiv.classList.remove('hidden');
-    resultDiv.innerHTML = '<span class="spinner"></span> Requesting testnet funds (~15 seconds)...';
+    resultDiv.innerHTML = '<span class="spinner"></span> Opening Stripe checkout...';
 
     try {
-        const resp = await fetch('/api/register', {
+        const resp = await fetch('/api/stripe/checkout', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name }),
+            body: JSON.stringify({ name, email, password, deposit_xrp: depositXrp }),
         });
         const data = await resp.json();
         if (data.error) {
             resultDiv.innerHTML = `<span style="color:var(--negative)">Error: ${data.error}</span>`;
             btn.disabled = false;
-            btn.textContent = 'Create My Wallet';
+            btn.textContent = 'Pay & Create Wallet';
         } else {
-            resultDiv.innerHTML =
-                `<span style="color:var(--positive);font-weight:700">Wallet created!</span>\n` +
-                `Name: ${data.name}\n` +
-                `Address: ${data.address}\n` +
-                `XRP Balance: ${data.xrp} XRP\n\n` +
-                `<a href="${data.profile_url}" class="btn btn-gold" style="display:inline-block;margin-top:8px">View My Profile →</a>`;
+            window.location.href = data.url;
         }
     } catch (e) {
         resultDiv.innerHTML = `<span style="color:var(--negative)">Network error: ${e.message}</span>`;
         btn.disabled = false;
-        btn.textContent = 'Create My Wallet';
+        btn.textContent = 'Pay & Create Wallet';
     }
 }
 
 // ── Event Creation ────────────────────────────────────────────────
+// createEvent() is defined inline in event_create.html for access to USERS balance data
 
-async function createEvent() {
-    const name = document.getElementById('event-name').value.trim();
-    const datetimeVal = document.getElementById('event-time').value;
-    const depositXrp = parseFloat(document.getElementById('deposit-xrp').value);
-    const lat = document.getElementById('lat-input').value;
-    const lon = document.getElementById('lon-input').value;
+// ── Add Funds (Top-Up) ────────────────────────────────────────────
 
-    const participantNames = Array.from(document.querySelectorAll('.participant-name'))
-        .map(i => i.value.trim()).filter(Boolean);
+async function addFunds(address) {
+    const topupXrp = parseFloat(document.getElementById('topup-amount').value) || 0;
+    if (topupXrp <= 0) { alert('Enter an amount greater than 0.'); return; }
 
-    if (!name) { alert('Enter an event name.'); return; }
-    if (!datetimeVal) { alert('Set a scheduled start time.'); return; }
-    if (participantNames.length < 2) { alert('Enter names for all participants.'); return; }
-    if (new Set(participantNames.map(n => n.toLowerCase())).size !== participantNames.length) {
-        alert('All participant names must be unique.'); return;
-    }
-    if (isNaN(depositXrp) || depositXrp < 0) { alert('Enter a valid cost (0 or more).'); return; }
-    if (!lat || !lon) { alert('Set the venue location first.'); return; }
-
-    const scheduledTime = new Date(datetimeVal).getTime() / 1000;
-    const n = participantNames.length;
-
-    const btn = document.getElementById('create-btn');
-    const resultDiv = document.getElementById('create-result');
-    btn.textContent = 'Creating wallets...';
+    const btn = document.querySelector('[onclick*="addFunds"]');
+    const resultDiv = document.getElementById('topup-result');
     btn.disabled = true;
+    btn.textContent = 'Redirecting to payment...';
     resultDiv.classList.remove('hidden');
-    resultDiv.innerHTML = `<span class="spinner"></span> Creating ${n} XRPL wallets (~${n * 15}s)...`;
+    resultDiv.innerHTML = '<span class="spinner"></span> Opening Stripe checkout...';
 
     try {
-        const resp = await fetch('/api/event/create', {
+        const resp = await fetch('/api/stripe/topup', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name,
-                lat: parseFloat(lat),
-                lon: parseFloat(lon),
-                scheduled_time: scheduledTime,
-                deposit_xrp: depositXrp,
-                participant_names: participantNames,
-            }),
+            body: JSON.stringify({ address, topup_xrp: topupXrp }),
         });
         const data = await resp.json();
         if (data.error) {
-            resultDiv.innerHTML = `<span style="color:var(--negative)">Error: ${data.error}</span>`;
+            resultDiv.innerHTML = `<span style="color:var(--negative)">${data.error}</span>`;
             btn.disabled = false;
-            btn.textContent = 'Create Event & Wallets';
+            btn.textContent = 'Add Funds via Stripe';
         } else {
-            window.location.href = '/event';
+            window.location.href = data.url;
         }
     } catch (e) {
         resultDiv.innerHTML = `<span style="color:var(--negative)">Network error: ${e.message}</span>`;
         btn.disabled = false;
-        btn.textContent = 'Create Event & Wallets';
+        btn.textContent = 'Add Funds via Stripe';
     }
 }
 
 // ── GPS Check-In ──────────────────────────────────────────────────
 
-async function doCheckin(address) {
+async function doCheckin(address, eventId) {
     const resultDiv = document.getElementById('checkin-result');
     const btn = document.getElementById('checkin-btn');
 
@@ -151,6 +143,7 @@ async function doCheckin(address) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 address,
+                event_id: eventId,
                 lat: pos.coords.latitude,
                 lon: pos.coords.longitude,
             }),
@@ -176,11 +169,10 @@ async function doCheckin(address) {
 
 // ── Event Resolve ─────────────────────────────────────────────────
 
-async function resolveEvent() {
-    const resultDiv = document.getElementById('resolve-result');
-    const btn = document.getElementById('resolve-btn');
-
+async function resolveEvent(eventId, btn) {
+    const resultDiv = document.getElementById('resolve-result-' + eventId);
     resultDiv.classList.remove('hidden');
+    resultDiv.style.display = 'block';
     resultDiv.innerHTML = '<span class="spinner"></span> Resolving on XRPL Testnet... (15–30 seconds)';
     btn.disabled = true;
 
@@ -188,6 +180,7 @@ async function resolveEvent() {
         const resp = await fetch('/api/event/resolve', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event_id: eventId }),
         });
         const data = await resp.json();
 

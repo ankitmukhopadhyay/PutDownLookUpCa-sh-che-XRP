@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log In — PUT UP</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header-bar">
+            <a href="/" class="btn btn-outline btn-sm">← Home</a>
+            <a href="/" class="logo-small">PUT UP</a>
+            <a href="/leaderboard" class="btn btn-outline btn-sm">Leaderboard</a>
+        </header>
+
+        <section class="profile-hero" style="padding-bottom: 0;">
+            <h1 class="page-title">Welcome Back</h1>
+            <p class="sub-text" style="margin-top: 8px;">Log in to your PUT UP account.</p>
+        </section>
+
+        <section class="card" style="margin-top: 24px;">
+            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+                <input type="email" id="email-input" placeholder="your@email.com"
+                       style="background: var(--dark); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; color: var(--text); font-size: 15px; outline: none; width: 100%; box-sizing: border-box;">
+                <input type="password" id="password-input" placeholder="Password"
+                       style="background: var(--dark); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; color: var(--text); font-size: 15px; outline: none; width: 100%; box-sizing: border-box;">
+            </div>
+
+            <button id="login-btn" class="btn btn-gold" style="width: 100%; font-size: 16px; padding: 16px;" onclick="doLogin()">
+                Log In
+            </button>
+            <div id="login-result" class="sim-result hidden" style="margin-top: 12px;"></div>
+
+            <p class="sub-text" style="margin-top: 16px; text-align: center;">
+                No account yet? <a href="/register" style="color: var(--gold);">Register here</a>
+            </p>
+        </section>
+
+        <footer>
+            <p>PUT UP LLC &mdash; All data on XRPL Testnet</p>
+        </footer>
+    </div>
+
+    <script>
+        async function doLogin() {
+            const email = document.getElementById('email-input').value.trim();
+            const password = document.getElementById('password-input').value;
+            const btn = document.getElementById('login-btn');
+            const resultDiv = document.getElementById('login-result');
+
+            if (!email || !password) {
+                resultDiv.classList.remove('hidden');
+                resultDiv.innerHTML = '<span style="color:var(--negative)">Enter your email and password.</span>';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Logging in...';
+            resultDiv.classList.remove('hidden');
+            resultDiv.innerHTML = '<span class="spinner"></span> Signing in...';
+
+            try {
+                const resp = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password }),
+                });
+                const data = await resp.json();
+                if (data.error) {
+                    resultDiv.innerHTML = `<span style="color:var(--negative)">${data.error}</span>`;
+                    btn.disabled = false;
+                    btn.textContent = 'Log In';
+                } else {
+                    resultDiv.innerHTML = `<span style="color:var(--positive)">Welcome back, ${data.name}! Redirecting...</span>`;
+                    setTimeout(() => { window.location.href = '/'; }, 1000);
+                }
+            } catch (e) {
+                resultDiv.innerHTML = `<span style="color:var(--negative)">Network error: ${e.message}</span>`;
+                btn.disabled = false;
+                btn.textContent = 'Log In';
+            }
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') doLogin();
+        });
+    </script>
+</body>
+</html>
