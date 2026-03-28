@@ -627,11 +627,17 @@ def api_login():
             ph = d.get("password_hash", "")
             if ph and check_password_hash(ph, password):
                 flask_session["address"] = d["address"]
-                return jsonify({"success": True, "address": d["address"], "name": name,
-                                "profile_url": f"/profile/{d['address']}"})
+                return jsonify({
+                    "success": True,
+                    "address": d["address"],
+                    "name": name,
+                    "profile_url": f"/profile/{d['address']}"
+                })
             else:
+                # Email matched but password is wrong — stop here
                 return jsonify({"error": "Incorrect password"}), 401
 
+    # No wallet matched the email at all
     return jsonify({"error": "No account found with that email"}), 404
 
 
