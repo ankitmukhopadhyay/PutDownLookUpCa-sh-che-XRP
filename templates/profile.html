@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ label }} — PUT UP Karma Profile</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header-bar">
+            <a href="/" class="logo-small">PUT UP</a>
+            <a href="/leaderboard" class="btn btn-outline btn-sm">Leaderboard</a>
+        </header>
+
+        <!-- Karma Score Hero -->
+        <section class="profile-hero">
+            <div class="tier-badge">
+                <span class="tier-icon-large">{{ tier.icon }}</span>
+                <span class="tier-name">{{ tier.name }}</span>
+            </div>
+            <h1 class="karma-score">{{ karma|int }}</h1>
+            <p class="karma-label">PUT UP KARMA</p>
+            <h2 class="profile-name">{{ label }}</h2>
+            <p class="profile-address" onclick="copyAddress('{{ address }}')" title="Click to copy">
+                {{ address[:12] }}...{{ address[-8:] }} 📋
+            </p>
+        </section>
+
+        <!-- Stats Row -->
+        <section class="stats-row">
+            <div class="stat-card">
+                <span class="stat-value">{{ xrp|round(2) }}</span>
+                <span class="stat-label">XRP Balance</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">{{ total }}</span>
+                <span class="stat-label">Commitments</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">{{ show_rate }}%</span>
+                <span class="stat-label">Show-Up Rate</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">{{ ghost_count }}</span>
+                <span class="stat-label">Times Ghosted</span>
+            </div>
+        </section>
+
+        <!-- Badges -->
+        {% if badges %}
+        <section class="card">
+            <h2>Badges</h2>
+            <div class="badges-grid">
+                {% for badge in badges %}
+                <div class="badge-item">
+                    <span class="badge-icon">{{ badge.icon }}</span>
+                    <span class="badge-name">{{ badge.name }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Simulate -->
+        <section class="card">
+            <h2>Simulate a Put Up</h2>
+            <p class="sub-text">Trigger real XRPL transactions to see karma change live.</p>
+            <div class="sim-buttons">
+                <button class="btn btn-gold" onclick="simulate('both_show', 'Hangout')">
+                    Both Show Up
+                </button>
+                <button class="btn btn-danger" onclick="simulate('b_ghosted', 'Movie Night')">
+                    {{ label }} Shows, Other Ghosts
+                </button>
+                <button class="btn btn-danger" onclick="simulate('a_ghosted', 'Game Night')">
+                    {{ label }} Ghosts
+                </button>
+                <button class="btn btn-outline" onclick="simulate('both_ghost', 'Study Group')">
+                    Both Ghost
+                </button>
+            </div>
+            <div id="sim-result" class="sim-result hidden"></div>
+        </section>
+
+        <!-- Commitment History -->
+        <section class="card">
+            <h2>Commitment History</h2>
+            {% if history %}
+            <div class="timeline">
+                {% for event in history %}
+                <div class="timeline-item {{ 'positive' if event.type == 'award' else 'negative' }}">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <span class="karma-change {{ 'positive' if event.type == 'award' else 'negative' }}">
+                                {{ '+' if event.type == 'award' else '-' }}{{ event.amount|int }} KRM
+                            </span>
+                            <span class="timeline-type">{{ event.type|upper }}</span>
+                        </div>
+                        <p class="timeline-reason">{{ event.reason }}</p>
+                        {% if event.tx_hash %}
+                        <a href="https://testnet.xrpl.org/transactions/{{ event.tx_hash }}"
+                           target="_blank" class="tx-link">
+                            Verify on XRPL: {{ event.tx_hash[:12] }}...
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="sub-text">No karma history yet. Use the simulator above to create on-chain transactions!</p>
+            {% endif %}
+        </section>
+
+        <!-- Verify -->
+        <section class="card" style="text-align: center;">
+            <a href="{{ explorer_url }}" target="_blank" class="btn btn-gold">
+                Verify Full Account on XRPL Explorer
+            </a>
+        </section>
+
+        <footer>
+            <p>PUT UP LLC &mdash; All data on XRPL Testnet</p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

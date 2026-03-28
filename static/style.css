@@ -1,0 +1,556 @@
+/* PUT UP — Dark Theme (brand colors from BagWheel.jsx) */
+
+:root {
+    --dark: #0A0A0A;
+    --gold: #C9A84C;
+    --gold-dim: rgba(201, 168, 76, 0.15);
+    --card: #161616;
+    --border: #2C2C2C;
+    --sub: #7A7872;
+    --text: #F0EDE8;
+    --positive: #4CAF50;
+    --negative: #E74C3C;
+    --accent: #E67E22;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: var(--dark);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* ── Header ─────────────────────────────────── */
+.hero {
+    text-align: center;
+    padding: 48px 0 32px;
+}
+
+.logo {
+    font-size: 48px;
+    font-weight: 900;
+    color: var(--gold);
+    letter-spacing: 4px;
+    margin-bottom: 8px;
+}
+
+.tagline {
+    color: var(--sub);
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+.header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+}
+
+.logo-small {
+    font-size: 24px;
+    font-weight: 900;
+    color: var(--gold);
+    letter-spacing: 3px;
+    text-decoration: none;
+}
+
+.page-title {
+    text-align: center;
+    font-size: 28px;
+    color: var(--gold);
+    margin-bottom: 8px;
+}
+
+/* ── Search ─────────────────────────────────── */
+.search-section {
+    margin: 24px 0;
+}
+
+.search-section form {
+    display: flex;
+    gap: 8px;
+}
+
+.search-input {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.search-input:focus {
+    border-color: var(--gold);
+}
+
+.search-input::placeholder {
+    color: var(--sub);
+}
+
+/* ── Buttons ────────────────────────────────── */
+.btn {
+    display: inline-block;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+    transition: opacity 0.2s;
+}
+
+.btn:hover { opacity: 0.85; }
+
+.btn-gold {
+    background: var(--gold);
+    color: #000;
+}
+
+.btn-danger {
+    background: var(--negative);
+    color: #fff;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+}
+
+.btn-sm {
+    padding: 8px 16px;
+    font-size: 12px;
+}
+
+/* ── Cards ──────────────────────────────────── */
+.card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.card h2 {
+    font-size: 18px;
+    color: var(--gold);
+    margin-bottom: 16px;
+}
+
+.sub-text {
+    color: var(--sub);
+    font-size: 13px;
+}
+
+/* ── How it Works ───────────────────────────── */
+.steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+
+.step {
+    text-align: center;
+    padding: 16px;
+}
+
+.step-icon {
+    font-size: 32px;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.step h3 {
+    font-size: 14px;
+    color: var(--gold);
+    margin-bottom: 6px;
+}
+
+.step p {
+    font-size: 12px;
+    color: var(--sub);
+}
+
+/* ── User Grid ──────────────────────────────── */
+.user-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.user-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--dark);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    text-decoration: none;
+    transition: border-color 0.2s;
+}
+
+.user-card:hover {
+    border-color: var(--gold);
+}
+
+.user-label {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.user-address {
+    font-size: 11px;
+    color: var(--sub);
+    font-family: monospace;
+    margin-top: 4px;
+}
+
+/* ── XRPL Features ──────────────────────────── */
+.xrpl-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.feature-tag {
+    background: var(--gold-dim);
+    color: var(--gold);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(201, 168, 76, 0.3);
+}
+
+/* ── Profile Hero ───────────────────────────── */
+.profile-hero {
+    text-align: center;
+    padding: 40px 0 24px;
+}
+
+.tier-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(201, 168, 76, 0.1);
+    border: 1px solid rgba(201, 168, 76, 0.3);
+    border-radius: 20px;
+    padding: 6px 16px;
+    margin-bottom: 16px;
+}
+
+.tier-icon-large {
+    font-size: 24px;
+}
+
+.tier-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gold);
+}
+
+.karma-score {
+    font-size: 72px;
+    font-weight: 900;
+    color: var(--gold);
+    letter-spacing: -2px;
+    line-height: 1;
+}
+
+.karma-label {
+    font-size: 12px;
+    color: var(--sub);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-top: 4px;
+}
+
+.profile-name {
+    font-size: 24px;
+    margin-top: 16px;
+}
+
+.profile-address {
+    font-size: 12px;
+    color: var(--sub);
+    font-family: monospace;
+    cursor: pointer;
+    margin-top: 4px;
+}
+
+.profile-address:hover {
+    color: var(--gold);
+}
+
+/* ── Stats Row ──────────────────────────────── */
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+}
+
+.stat-value {
+    display: block;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text);
+}
+
+.stat-label {
+    display: block;
+    font-size: 10px;
+    color: var(--sub);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+}
+
+/* ── Badges ─────────────────────────────────── */
+.badges-grid {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.badge-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--dark);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 8px 14px;
+}
+
+.badge-icon { font-size: 18px; }
+.badge-name { font-size: 12px; font-weight: 600; }
+
+/* ── Simulate ───────────────────────────────── */
+.sim-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.sim-result {
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--dark);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font-size: 13px;
+    font-family: monospace;
+    white-space: pre-wrap;
+}
+
+.sim-result.hidden { display: none; }
+
+/* ── Timeline ───────────────────────────────── */
+.timeline {
+    position: relative;
+    padding-left: 24px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.timeline-dot {
+    position: absolute;
+    left: -24px;
+    top: 4px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--card);
+}
+
+.timeline-item.positive .timeline-dot {
+    border-color: var(--positive);
+    background: var(--positive);
+}
+
+.timeline-item.negative .timeline-dot {
+    border-color: var(--negative);
+    background: var(--negative);
+}
+
+.timeline-content {
+    background: var(--dark);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+}
+
+.timeline-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.karma-change {
+    font-weight: 800;
+    font-size: 16px;
+}
+
+.karma-change.positive { color: var(--positive); }
+.karma-change.negative { color: var(--negative); }
+
+.timeline-type {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--sub);
+}
+
+.timeline-reason {
+    font-size: 13px;
+    color: var(--sub);
+    margin-bottom: 6px;
+}
+
+.tx-link {
+    font-size: 11px;
+    color: var(--gold);
+    text-decoration: none;
+    font-family: monospace;
+    opacity: 0.7;
+}
+
+.tx-link:hover { opacity: 1; }
+
+/* ── Leaderboard ────────────────────────────── */
+.leaderboard {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.leaderboard-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    text-decoration: none;
+    transition: border-color 0.2s;
+}
+
+.leaderboard-row:hover {
+    border-color: var(--gold);
+}
+
+.rank {
+    font-size: 20px;
+    min-width: 36px;
+    text-align: center;
+}
+
+.lb-tier-icon { font-size: 24px; }
+
+.lb-info { flex: 1; }
+
+.lb-name {
+    display: block;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.lb-address {
+    display: block;
+    font-size: 11px;
+    color: var(--sub);
+    font-family: monospace;
+}
+
+.lb-score { text-align: right; }
+
+.lb-karma {
+    display: block;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--gold);
+}
+
+.lb-tier {
+    display: block;
+    font-size: 11px;
+    color: var(--sub);
+}
+
+/* ── Footer ─────────────────────────────────── */
+footer {
+    text-align: center;
+    padding: 32px 0;
+    color: var(--sub);
+    font-size: 12px;
+}
+
+/* ── Loading Spinner ────────────────────────── */
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Responsive ─────────────────────────────── */
+@media (max-width: 600px) {
+    .steps { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .sim-buttons { flex-direction: column; }
+    .karma-score { font-size: 56px; }
+}

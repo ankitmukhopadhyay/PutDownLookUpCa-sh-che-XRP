@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard — PUT UP Karma</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header-bar">
+            <a href="/" class="logo-small">PUT UP</a>
+            <a href="/" class="btn btn-outline btn-sm">Home</a>
+        </header>
+
+        <h1 class="page-title">Karma Leaderboard</h1>
+        <p class="sub-text" style="text-align:center; margin-bottom: 24px;">
+            Who keeps their word? Rankings based on on-chain KRM token balance.
+        </p>
+
+        <div class="leaderboard">
+            {% for user in users %}
+            <a href="/profile/{{ user.address }}" class="leaderboard-row">
+                <span class="rank">
+                    {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}#{{ loop.index }}{% endif %}
+                </span>
+                <span class="lb-tier-icon">{{ user.tier.icon }}</span>
+                <div class="lb-info">
+                    <span class="lb-name">{{ user.label }}</span>
+                    <span class="lb-address">{{ user.address[:8] }}...{{ user.address[-6:] }}</span>
+                </div>
+                <div class="lb-score">
+                    <span class="lb-karma">{{ user.karma|int }} KRM</span>
+                    <span class="lb-tier">{{ user.tier.name }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+
+        <footer>
+            <p>PUT UP LLC &mdash; XRPL Testnet</p>
+        </footer>
+    </div>
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUT UP — Social Accountability on the Blockchain</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Hero -->
+        <header class="hero">
+            <h1 class="logo">PUT UP</h1>
+            <p class="tagline">Stop flaking. Start pulling up.<br>Your reputation is on-chain.</p>
+        </header>
+
+        <!-- Search -->
+        <section class="search-section">
+            <form action="/profile/" method="get" id="search-form">
+                <input type="text" id="address-input" placeholder="Enter XRPL address to look up karma..."
+                       class="search-input" autocomplete="off">
+                <button type="submit" class="btn btn-gold">Look Up</button>
+            </form>
+        </section>
+
+        <!-- How it Works -->
+        <section class="card how-it-works">
+            <h2>How It Works</h2>
+            <div class="steps">
+                <div class="step">
+                    <span class="step-icon">🤝</span>
+                    <h3>1. Commit</h3>
+                    <p>Make plans with friends. Lock your "Bag" (XRP) in on-chain escrow to prove you're serious.</p>
+                </div>
+                <div class="step">
+                    <span class="step-icon">📍</span>
+                    <h3>2. Show Up</h3>
+                    <p>GPS check-in verifies who actually pulled up. 31-minute window, 300ft radius.</p>
+                </div>
+                <div class="step">
+                    <span class="step-icon">⚡</span>
+                    <h3>3. Earn or Burn</h3>
+                    <p>Show up = earn KARMA + get your bag back. Ghost = lose KARMA + lose your bag.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Demo Users -->
+        {% if users %}
+        <section class="card">
+            <h2>Demo Profiles</h2>
+            <div class="user-grid">
+                {% for user in users %}
+                <a href="/profile/{{ user.address }}" class="user-card">
+                    <span class="user-label">{{ user.label }}</span>
+                    <span class="user-address">{{ user.address[:8] }}...{{ user.address[-6:] }}</span>
+                </a>
+                {% endfor %}
+            </div>
+            <div style="text-align: center; margin-top: 16px;">
+                <a href="/leaderboard" class="btn btn-outline">View Leaderboard</a>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Blockchain Info -->
+        <section class="card">
+            <h2>Powered by XRPL</h2>
+            <p class="sub-text">
+                All reputation data and escrow transactions live on the
+                <strong>XRP Ledger Testnet</strong> — transparent, immutable, verifiable.
+                Every karma award, every ghost penalty, every bag lock is a real blockchain transaction.
+            </p>
+            <div class="xrpl-features">
+                <span class="feature-tag">XRP Escrow</span>
+                <span class="feature-tag">KRM Issued Token</span>
+                <span class="feature-tag">Trust Lines</span>
+                <span class="feature-tag">On-Chain Memos</span>
+            </div>
+        </section>
+
+        <footer>
+            <p>PUT UP LLC &mdash; RippleX USF Hackathon 2026</p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+    <script>
+        document.getElementById('search-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const address = document.getElementById('address-input').value.trim();
+            if (address) {
+                window.location.href = '/profile/' + address;
+            }
+        });
+    </script>
+</body>
+</html>
