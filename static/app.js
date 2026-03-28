@@ -56,34 +56,31 @@ async function registerUser() {
     const password = document.getElementById('password-input')?.value || '';
     if (password.length < 6) { alert('Password must be at least 6 characters.'); return; }
 
-    const depositXrp = parseFloat(document.getElementById('deposit-input')?.value) || 0;
-    if (depositXrp <= 0) { alert('Enter a deposit amount greater than 0.'); return; }
-
     const btn = document.getElementById('register-btn');
     const resultDiv = document.getElementById('register-result');
     btn.disabled = true;
-    btn.textContent = 'Redirecting to payment...';
+    btn.textContent = 'Creating wallet...';
     resultDiv.classList.remove('hidden');
-    resultDiv.innerHTML = '<span class="spinner"></span> Opening Stripe checkout...';
+    resultDiv.innerHTML = '<span class="spinner"></span> Setting up your XRPL wallet...';
 
     try {
-        const resp = await fetch('/api/stripe/checkout', {
+        const resp = await fetch('/api/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email, password, deposit_xrp: depositXrp }),
+            body: JSON.stringify({ name, email, password, deposit_xrp: 0 }),
         });
         const data = await resp.json();
         if (data.error) {
             resultDiv.innerHTML = `<span style="color:var(--negative)">Error: ${data.error}</span>`;
             btn.disabled = false;
-            btn.textContent = 'Pay & Create Wallet';
+            btn.textContent = 'Create Wallet';
         } else {
-            window.location.href = data.url;
+            window.location.href = data.profile_url;
         }
     } catch (e) {
         resultDiv.innerHTML = `<span style="color:var(--negative)">Network error: ${e.message}</span>`;
         btn.disabled = false;
-        btn.textContent = 'Pay & Create Wallet';
+        btn.textContent = 'Create Wallet';
     }
 }
 

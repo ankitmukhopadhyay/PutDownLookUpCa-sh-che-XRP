@@ -14,6 +14,7 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, s
 from werkzeug.security import generate_password_hash, check_password_hash
 from xrpl.clients import JsonRpcClient
 from xrpl.wallet import Wallet
+from xrpl.models.requests import AccountTx
 
 import config
 from wallet_manager import (
@@ -562,10 +563,18 @@ def _create_wallet_and_respond(name, deposit_xrp, stripe_paid=False, email=None,
 def api_register():
     data = request.get_json()
     name = data.get("name", "").strip()
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "")
     deposit_xrp = float(data.get("deposit_xrp", 0))
     if not name:
         return jsonify({"error": "Name is required"}), 400
-    return _create_wallet_and_respond(name, deposit_xrp, stripe_paid=False)
+    if not email or "@" not in email:
+        return jsonify({"error": "Valid email is required"}), 400
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+    password_hash = generate_password_hash(password)
+    return _create_wallet_and_respond(name, deposit_xrp, stripe_paid=False,
+                                      email=email, password_hash=password_hash)
 
 
 # ── Auth ─────────────────────────────────────────────────────────
@@ -891,6 +900,119 @@ def api_event_resolve():
         return jsonify(report)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ── Explorer ────────────────────────────────────────────────────
+
+@app.route("/explorer")
+def explorer():
+    if not client or not wallets_data:
+        return "XRPL not initialized.", 500
+
+    issuer_address = wallets_data["Platform"]["address"]
+
+    # Platform wallet info
+    platform_xrp = get_xrp_balance(client, issuer_address)
+
+    # User wallets with balances
+    users = []
+    for label, data in wallets_data.items():
+        if label == "Platform":
+            continue
+        xrp = get_xrp_balance(client, data["address"])
+        krm = get_karma_balance(client, data["address"], issuer_address)
+        users.append({
+            "label": label,
+            "address": data["address"],
+            "xrp": round(xrp, 4),
+            "krm": int(krm),
+            "balance": data.get("balance", 0),
+        })
+
+    # Recent transactions on platform wallet (last 20)
+    transactions = []
+    try:
+        resp = client.request(AccountTx(account=issuer_address, limit=20))
+        for item in resp.result.get("transactions", []):
+            tx = item.get("tx", {})
+            meta = item.get("meta", {})
+            tx_type = tx.get("TransactionType", "")
+            tx_hash = tx.get("hash", "")
+            amount_raw = tx.get("Amount", 0)
+            amount_xrp = None
+            if isinstance(amount_raw, str):
+                amount_xrp = round(int(amount_raw) / 1_000_000, 4)
+
+            # Decode memo if present
+            memo_text = ""
+            memos = tx.get("Memos", [])
+            if memos:
+                try:
+                    memo_hex = memos[0].get("Memo", {}).get("MemoData", "")
+                    memo_text = bytes.fromhex(memo_hex).decode("utf-8", errors="ignore")
+                except Exception:
+                    pass
+
+            # Resolve label for sender/destination
+            def addr_label(addr):
+                for n, d in wallets_data.items():
+                    if d.get("address") == addr:
+                        return n
+                return addr[:10] + "..."
+
+            account = tx.get("Account", "")
+            destination = tx.get("Destination", "")
+            result_code = meta.get("TransactionResult", "")
+
+            # Ripple epoch offset
+            date_raw = tx.get("date")
+            date_str = ""
+            if date_raw:
+                from datetime import datetime, timezone, timedelta
+                unix_ts = date_raw + 946684800
+                date_str = datetime.fromtimestamp(unix_ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+            # Tag the tx type for display
+            if memo_text.startswith("PUT UP Bag Deposit"):
+                display_type = "Deposit"
+                tag_class = "tag-deposit"
+            elif memo_text.startswith("Put Up resolved") or "showed up" in memo_text:
+                display_type = "Payout"
+                tag_class = "tag-payout"
+            elif tx_type == "TrustSet":
+                display_type = "Trust Line"
+                tag_class = "tag-trust"
+            elif tx_type == "Payment" and amount_xrp is None:
+                display_type = "KRM Token"
+                tag_class = "tag-karma"
+            else:
+                display_type = tx_type
+                tag_class = "tag-other"
+
+            transactions.append({
+                "hash": tx_hash,
+                "hash_short": tx_hash[:10] + "..." if tx_hash else "",
+                "type": display_type,
+                "tag_class": tag_class,
+                "from": addr_label(account),
+                "to": addr_label(destination) if destination else "",
+                "amount_xrp": amount_xrp,
+                "memo": memo_text[:60] + ("..." if len(memo_text) > 60 else ""),
+                "result": result_code,
+                "date": date_str,
+            })
+    except Exception as e:
+        transactions = []
+
+    return render_template(
+        "explorer.html",
+        platform_address=issuer_address,
+        platform_xrp=round(platform_xrp, 4),
+        users=users,
+        transactions=transactions,
+        network="XRPL Testnet",
+        testnet_url="https://testnet.xrpl.org/accounts/",
+    )
 
 
 # ── Main ────────────────────────────────────────────────────────

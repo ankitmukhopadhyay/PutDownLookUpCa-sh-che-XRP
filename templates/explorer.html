@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PUT UP Explorer — XRPL Testnet</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .explorer-section { margin-bottom: 36px; }
+        .explorer-section h2 { font-size: 1rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--gold, #c9a84c); margin-bottom: 12px; }
+
+        .network-badge { display: inline-block; background: #1a2a1a; color: #4caf50;
+            border: 1px solid #4caf50; border-radius: 6px; padding: 2px 10px;
+            font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; margin-left: 8px;
+            vertical-align: middle; }
+
+        .platform-card { background: #111; border: 1px solid #2a2a2a; border-radius: 10px;
+            padding: 18px 22px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+        .platform-card .addr { font-family: monospace; font-size: 0.82rem; color: #aaa; word-break: break-all; }
+        .platform-card .xrp-bal { font-size: 1.4rem; font-weight: 700; color: #fff; white-space: nowrap; }
+        .platform-card .ext-link { font-size: 0.78rem; color: #c9a84c; text-decoration: none; }
+        .platform-card .ext-link:hover { text-decoration: underline; }
+
+        .wallet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+        .wallet-card { background: #111; border: 1px solid #2a2a2a; border-radius: 10px; padding: 14px 16px; }
+        .wallet-card .wc-name { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; }
+        .wallet-card .wc-addr { font-family: monospace; font-size: 0.72rem; color: #777; margin-bottom: 10px; word-break: break-all; }
+        .wallet-card .wc-balances { display: flex; gap: 14px; }
+        .wallet-card .wc-bal { font-size: 0.85rem; }
+        .wallet-card .wc-bal span { font-weight: 700; }
+        .wallet-card .wc-bal.xrp span { color: #60a5fa; }
+        .wallet-card .wc-bal.krm span { color: #c9a84c; }
+        .wallet-card .wc-ext { display: block; margin-top: 8px; font-size: 0.72rem; color: #555; text-decoration: none; }
+        .wallet-card .wc-ext:hover { color: #c9a84c; }
+
+        .tx-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .tx-table th { text-align: left; padding: 8px 10px; color: #555; font-weight: 600;
+            border-bottom: 1px solid #1e1e1e; white-space: nowrap; }
+        .tx-table td { padding: 9px 10px; border-bottom: 1px solid #181818; vertical-align: top; }
+        .tx-table tr:hover td { background: #0f0f0f; }
+        .tx-table .mono { font-family: monospace; color: #777; }
+        .tx-table .memo { color: #999; font-style: italic; }
+        .tx-table .amount { color: #60a5fa; font-weight: 600; white-space: nowrap; }
+        .tx-table .success { color: #4caf50; font-size: 0.72rem; }
+        .tx-table .fail { color: #f44336; font-size: 0.72rem; }
+
+        .tag { display: inline-block; border-radius: 4px; padding: 1px 7px;
+            font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; }
+        .tag-deposit { background: #1a3a2a; color: #4caf50; }
+        .tag-payout  { background: #1a2a3a; color: #60a5fa; }
+        .tag-trust   { background: #2a2a1a; color: #c9a84c; }
+        .tag-karma   { background: #3a1a2a; color: #e879f9; }
+        .tag-other   { background: #222; color: #888; }
+
+        .no-tx { color: #444; font-style: italic; text-align: center; padding: 24px 0; }
+        .refresh-btn { float: right; font-size: 0.78rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header class="header-bar">
+        <a href="/" class="btn btn-outline btn-sm">← Home</a>
+        <a href="/" class="logo-small">PUT UP</a>
+        {% if current_user %}
+        <div style="display:flex;gap:6px;align-items:center;">
+            <a href="/profile/{{ current_user.address }}" class="btn btn-outline btn-sm">{{ current_user.name }}</a>
+            <a href="/logout" class="btn btn-outline btn-sm">Log Out</a>
+        </div>
+        {% else %}
+        <a href="/login" class="btn btn-gold btn-sm">Log In</a>
+        {% endif %}
+    </header>
+
+    <h1 class="page-title">
+        PUT UP Explorer
+        <span class="network-badge">{{ network }}</span>
+    </h1>
+    <p class="sub-text" style="text-align:center;margin-bottom:28px;">
+        Live on-chain view of wallets, balances, and transactions for this PUT UP instance.
+    </p>
+
+    <!-- Platform Wallet -->
+    <div class="explorer-section">
+        <h2>Platform Wallet</h2>
+        <div class="platform-card">
+            <div>
+                <div class="xrp-bal">{{ platform_xrp }} XRP</div>
+                <div class="addr">{{ platform_address }}</div>
+            </div>
+            <a href="{{ testnet_url }}{{ platform_address }}" target="_blank" class="ext-link">
+                View on testnet.xrpl.org ↗
+            </a>
+        </div>
+    </div>
+
+    <!-- User Wallets -->
+    <div class="explorer-section">
+        <h2>User Wallets ({{ users|length }})</h2>
+        {% if users %}
+        <div class="wallet-grid">
+            {% for u in users %}
+            <div class="wallet-card">
+                <div class="wc-name">{{ u.label }}</div>
+                <div class="wc-addr">{{ u.address }}</div>
+                <div class="wc-balances">
+                    <div class="wc-bal xrp">XRP <span>{{ u.xrp }}</span></div>
+                    <div class="wc-bal krm">KRM <span>{{ u.krm }}</span></div>
+                </div>
+                <a href="{{ testnet_url }}{{ u.address }}" target="_blank" class="wc-ext">
+                    View on testnet.xrpl.org ↗
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="no-tx">No user wallets found. Register an account to get started.</p>
+        {% endif %}
+    </div>
+
+    <!-- Recent Transactions -->
+    <div class="explorer-section">
+        <h2>
+            Recent Transactions
+            <a href="/explorer" class="btn btn-outline btn-sm refresh-btn">Refresh</a>
+        </h2>
+        {% if transactions %}
+        <div style="overflow-x:auto;">
+        <table class="tx-table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>From</th>
+                    <th>To</th>
+                    <th>Amount</th>
+                    <th>Memo</th>
+                    <th>Date</th>
+                    <th>Hash</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tx in transactions %}
+                <tr>
+                    <td><span class="tag {{ tx.tag_class }}">{{ tx.type }}</span></td>
+                    <td>{{ tx.from }}</td>
+                    <td>{{ tx.to }}</td>
+                    <td>
+                        {% if tx.amount_xrp is not none %}
+                        <span class="amount">{{ tx.amount_xrp }} XRP</span>
+                        {% else %}
+                        <span style="color:#e879f9;font-size:0.78rem;">KRM</span>
+                        {% endif %}
+                    </td>
+                    <td class="memo">{{ tx.memo }}</td>
+                    <td style="white-space:nowrap;color:#555;font-size:0.75rem;">{{ tx.date }}</td>
+                    <td>
+                        <a href="https://testnet.xrpl.org/transactions/{{ tx.hash }}"
+                           target="_blank" class="mono" style="font-size:0.75rem;color:#c9a84c;text-decoration:none;">
+                            {{ tx.hash_short }}
+                        </a>
+                    </td>
+                    <td>
+                        {% if tx.result == "tesSUCCESS" %}
+                        <span class="success">✓</span>
+                        {% else %}
+                        <span class="fail">{{ tx.result }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p class="no-tx">No transactions found yet.</p>
+        {% endif %}
+    </div>
+
+    <footer>
+        <p>PUT UP LLC &mdash; XRPL Testnet &mdash; <a href="/leaderboard" style="color:#c9a84c;">Leaderboard</a></p>
+    </footer>
+</div>
+</body>
+</html>

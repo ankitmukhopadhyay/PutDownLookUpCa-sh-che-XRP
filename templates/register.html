@@ -36,17 +36,8 @@
                        style="background: var(--dark); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; color: var(--text); font-size: 14px; outline: none; width: 100%; box-sizing: border-box;">
             </div>
 
-            <h2 style="margin-top: 8px;">Initial Deposit</h2>
-            <p class="sub-text" style="margin-bottom: 12px;">This XRP goes into your account balance and is used when you join events.</p>
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
-                <input type="number" id="deposit-input" value="10" min="0" max="500" step="1"
-                       style="width: 120px; background: var(--dark); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; color: var(--gold); font-size: 20px; font-weight: 800; text-align: right; outline: none;">
-                <span style="color: var(--sub); font-size: 14px;">XRP</span>
-                <span id="deposit-usd" style="color: var(--sub); font-size: 13px;">≈ $20 USD</span>
-            </div>
-
             <button id="register-btn" class="btn btn-gold" style="width: 100%;" onclick="registerUser()">
-                Pay & Create Wallet
+                Create Wallet
             </button>
             <div id="register-result" class="sim-result hidden"></div>
 
@@ -85,10 +76,6 @@
     <script>
         document.getElementById('name-input').addEventListener('keydown', function(e) {
             if (e.key === 'Enter') registerUser();
-        });
-        document.getElementById('deposit-input').addEventListener('input', function() {
-            const val = parseFloat(this.value) || 0;
-            document.getElementById('deposit-usd').textContent = val === 0 ? '(no stakes)' : `≈ $${(val * 2).toFixed(0)} USD`;
         });
     </script>
 </body>
