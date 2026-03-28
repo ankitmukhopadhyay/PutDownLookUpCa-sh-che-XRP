@@ -17,6 +17,7 @@ from xrpl.wallet import Wallet
 from xrpl.models.requests import AccountTx
 
 import config
+import db
 from wallet_manager import (
     get_xrp_balance, get_karma_balance, load_wallets,
     create_funded_wallet, create_user_wallet, setup_trust_line,
