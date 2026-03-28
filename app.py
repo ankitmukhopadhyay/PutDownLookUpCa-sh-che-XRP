@@ -296,29 +296,26 @@ def api_event_create():
     lat = data.get("lat")
     lon = data.get("lon")
     scheduled_time = data.get("scheduled_time")
-    name_a = data.get("participant_a_name", "").strip()
-    name_b = data.get("participant_b_name", "").strip()
+    participant_names = [n.strip() for n in data.get("participant_names", []) if n.strip()]
     deposit_xrp = float(data.get("deposit_xrp", config.DEFAULT_BAG_XRP))
 
-    if not all([name, lat is not None, lon is not None, scheduled_time, name_a, name_b]):
+    if not all([name, lat is not None, lon is not None, scheduled_time]):
         return jsonify({"error": "Missing required fields"}), 400
-    if name_a.lower() == name_b.lower():
-        return jsonify({"error": "Participants must have different names"}), 400
+    if len(participant_names) < 2:
+        return jsonify({"error": "At least 2 participants required"}), 400
+    if len(participant_names) != len(set(n.lower() for n in participant_names)):
+        return jsonify({"error": "Participants must have unique names"}), 400
 
     existing = load_wallets() if os.path.exists(config.WALLETS_FILE) else {}
 
     try:
-        # Create wallet for participant A
-        wallet_a = create_funded_wallet(client, name_a)
-        setup_trust_line(client, wallet_a, platform_wallet.address)
-        existing[name_a] = {"address": wallet_a.address, "seed": wallet_a.seed}
-        user_wallets[name_a] = {"wallet": wallet_a, "address": wallet_a.address, "label": name_a}
-
-        # Create wallet for participant B
-        wallet_b = create_funded_wallet(client, name_b)
-        setup_trust_line(client, wallet_b, platform_wallet.address)
-        existing[name_b] = {"address": wallet_b.address, "seed": wallet_b.seed}
-        user_wallets[name_b] = {"wallet": wallet_b, "address": wallet_b.address, "label": name_b}
+        created = []
+        for pname in participant_names:
+            w = create_funded_wallet(client, pname)
+            setup_trust_line(client, w, platform_wallet.address)
+            existing[pname] = {"address": w.address, "seed": w.seed}
+            user_wallets[pname] = {"wallet": w, "address": w.address, "label": pname}
+            created.append({"name": pname, "address": w.address})
 
         with open(config.WALLETS_FILE, "w") as f:
             json.dump(existing, f, indent=2)
@@ -330,17 +327,10 @@ def api_event_create():
             "lon": float(lon),
             "scheduled_time": float(scheduled_time),
             "deposit_xrp": deposit_xrp,
-            "participant_a": wallet_a.address,
-            "participant_b": wallet_b.address,
-            "participant_a_name": name_a,
-            "participant_b_name": name_b,
+            "participants": created,
             "checkins": {},
         }
-        return jsonify({
-            "success": True,
-            "participant_a": {"name": name_a, "address": wallet_a.address},
-            "participant_b": {"name": name_b, "address": wallet_b.address},
-        })
+        return jsonify({"success": True, "participants": created})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -353,16 +343,12 @@ def event_status():
         return render_template("event_status.html", event=None, participants=[])
 
     participants = []
-    for addr in [active_event["participant_a"], active_event["participant_b"]]:
-        label = addr[:12] + "..."
-        for n, d in (wallets_data or {}).items():
-            if d["address"] == addr:
-                label = n
-                break
+    for p in active_event["participants"]:
+        addr = p["address"]
         info = active_event["checkins"].get(addr, {})
         participants.append({
             "address": addr,
-            "label": label,
+            "label": p["name"],
             "checked_in": addr in active_event["checkins"],
             "distance_ft": info.get("distance_ft"),
             "elapsed_min": info.get("elapsed_min"),
@@ -428,7 +414,8 @@ def api_checkin():
     if not all([address, user_lat is not None, user_lon is not None]):
         return jsonify({"error": "Missing address or GPS coordinates"}), 400
 
-    if address not in (active_event["participant_a"], active_event["participant_b"]):
+    participant_addresses = [p["address"] for p in active_event["participants"]]
+    if address not in participant_addresses:
         return jsonify({"error": "You are not a participant in this event"}), 400
 
     if address in active_event["checkins"]:
@@ -459,8 +446,7 @@ def api_event_status():
         "active": True,
         "name": active_event["name"],
         "scheduled_time": active_event["scheduled_time"],
-        "participant_a": active_event["participant_a"],
-        "participant_b": active_event["participant_b"],
+        "participants": active_event["participants"],
         "checkins": list(active_event["checkins"].keys()),
     })
 
@@ -473,37 +459,72 @@ def api_event_resolve():
     if not client or not platform_wallet:
         return jsonify({"error": "Not initialized"}), 500
 
-    addr_a = active_event["participant_a"]
-    addr_b = active_event["participant_b"]
-
-    wallet_a = next((uw["wallet"] for uw in user_wallets.values() if uw["address"] == addr_a), None)
-    wallet_b = next((uw["wallet"] for uw in user_wallets.values() if uw["address"] == addr_b), None)
-
-    if not wallet_a or not wallet_b:
-        return jsonify({"error": "Could not find participant wallets. Were they registered on this server?"}), 500
-
-    checkin_a = addr_a in active_event["checkins"]
-    checkin_b = addr_b in active_event["checkins"]
+    participants = active_event["participants"]
+    deposit_xrp = active_event.get("deposit_xrp", config.DEFAULT_BAG_XRP)
     event_name = active_event["name"]
+    checkins = active_event["checkins"]
+
+    showups = [p for p in participants if p["address"] in checkins]
+    ghosts  = [p for p in participants if p["address"] not in checkins]
+
+    # Resolve wallets
+    wallets = {}
+    for p in participants:
+        w = next((uw["wallet"] for uw in user_wallets.values() if uw["address"] == p["address"]), None)
+        if not w:
+            return jsonify({"error": f"Wallet not found for {p['name']}. Restart the server and recreate the event."}), 500
+        wallets[p["address"]] = w
 
     try:
-        deposit_xrp = active_event.get("deposit_xrp", config.DEFAULT_BAG_XRP)
-        deposit_a = deposit_bag(client, wallet_a, platform_wallet.address, deposit_xrp, event_name)
-        deposit_b = deposit_bag(client, wallet_b, platform_wallet.address, deposit_xrp, event_name)
+        tx_hashes = {"deposits": [], "payments": [], "karma": []}
 
-        report = resolve_full_putup(
-            client, platform_wallet,
-            wallet_a, wallet_b,
-            deposit_a, deposit_b,
-            deposit_xrp, deposit_xrp,
-            checkin_a, checkin_b,
-            event_name,
-        )
+        # Deposit bags (skip if deposit is 0)
+        if deposit_xrp > 0:
+            for p in participants:
+                d = deposit_bag(client, wallets[p["address"]], platform_wallet.address, deposit_xrp, event_name)
+                tx_hashes["deposits"].append(d["tx_hash"])
 
-        issuer_address = platform_wallet.address
-        report["new_scores"] = {
-            addr_a: get_karma_score(client, addr_a, issuer_address),
-            addr_b: get_karma_score(client, addr_b, issuer_address),
+        # Calculate payouts
+        ghost_pot       = round(deposit_xrp * len(ghosts), 6)
+        platform_cut    = round(ghost_pot * config.GHOST_PLATFORM_SHARE, 6) if ghost_pot > 0 else 0
+        winner_pool     = round(ghost_pot - platform_cut, 6)
+        bonus_per_show  = round(winner_pool / len(showups), 6) if showups else 0
+        payout_per_show = round(deposit_xrp + bonus_per_show, 6)
+
+        # Pay show-ups
+        for p in showups:
+            if deposit_xrp > 0:
+                pay = send_payment(client, platform_wallet, p["address"], payout_per_show,
+                                   f"Put Up resolved | {event_name}")
+                tx_hashes["payments"].append(pay["tx_hash"])
+            karma_delta = config.KARMA_WINNER_BONUS if ghosts else config.KARMA_BOTH_SHOW
+            k = issue_karma(client, platform_wallet, p["address"], karma_delta,
+                            f"{event_name}: showed up")
+            tx_hashes["karma"].append(k["tx_hash"])
+
+        # Penalise ghosts
+        for p in ghosts:
+            penalty = config.KARMA_BOTH_GHOST_PENALTY if not showups else config.KARMA_GHOST_PENALTY
+            current = get_karma_score(client, p["address"], platform_wallet.address)
+            burn_amount = min(penalty, current)
+            if burn_amount > 0:
+                k = burn_karma(client, wallets[p["address"]], platform_wallet.address,
+                               burn_amount, f"{event_name}: ghosted")
+                tx_hashes["karma"].append(k["tx_hash"])
+
+        issuer = platform_wallet.address
+        outcome = "all_show" if not ghosts else ("all_ghost" if not showups else "mixed")
+
+        report = {
+            "event": event_name,
+            "outcome": outcome,
+            "showups": [p["name"] for p in showups],
+            "ghosts":  [p["name"] for p in ghosts],
+            "deposit_xrp": deposit_xrp,
+            "payout_per_showup": payout_per_show if showups else 0,
+            "platform_cut": platform_cut,
+            "tx_hashes": tx_hashes,
+            "new_scores": {p["name"]: get_karma_score(client, p["address"], issuer) for p in participants},
         }
 
         active_event = {}
@@ -520,4 +541,4 @@ if __name__ == "__main__":
     print(f"\n  PUT UP is running!")
     print(f"  Local:   http://localhost:8080")
     print(f"  Network: http://{lan_ip}:8080  ← share this with participants\n")
-    app.run(host="0.0.0.0", port=8080, debug=True)
+    app.run(host="0.0.0.0", port=8080, debug=True, use_reloader=False)

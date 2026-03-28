@@ -11,12 +11,17 @@
         .form-input { width: 100%; background: var(--dark); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; color: var(--text); font-size: 14px; outline: none; }
         .form-input:focus { border-color: var(--gold); }
         .coord-display { font-size: 12px; color: var(--positive); margin-top: 6px; min-height: 18px; font-family: monospace; }
-        .deposit-row { display: flex; align-items: center; gap: 8px; }
-        .deposit-row .form-input { text-align: right; font-size: 18px; font-weight: 700; }
-        .deposit-unit { font-size: 14px; color: var(--sub); white-space: nowrap; }
-        .participant-row { display: flex; gap: 8px; margin-bottom: 10px; }
+        .cost-row { display: flex; align-items: center; gap: 10px; }
+        .cost-row .form-input { max-width: 130px; font-size: 20px; font-weight: 800; text-align: right; color: var(--gold); }
+        .cost-unit { color: var(--sub); font-size: 14px; }
+        .cost-usd { color: var(--sub); font-size: 13px; }
+        .participant-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .participant-badge { width: 26px; min-width: 26px; height: 26px; background: var(--gold-dim); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: var(--gold); }
         .participant-row .form-input { flex: 1; }
-        .participant-label { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; min-width: 28px; background: var(--gold-dim); border-radius: 50%; font-size: 12px; font-weight: 700; color: var(--gold); margin-top: 10px; }
+        .count-row { display: flex; align-items: center; gap: 12px; }
+        .count-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--text); font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
+        .count-btn:hover { border-color: var(--gold); color: var(--gold); }
+        .count-val { font-size: 24px; font-weight: 900; color: var(--gold); min-width: 32px; text-align: center; }
     </style>
 </head>
 <body>
@@ -44,28 +49,29 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">Initial Deposit per Person</label>
-                <div class="deposit-row">
-                    <input type="number" id="deposit-xrp" class="form-input" value="10" min="1" max="500" step="1" style="max-width: 120px;">
-                    <span class="deposit-unit">XRP per person</span>
-                    <span class="deposit-unit" id="deposit-usd" style="color: var(--sub);">(~$20)</span>
+                <label class="form-label">Cost of Event (Stakes per Person)</label>
+                <div class="cost-row">
+                    <input type="number" id="deposit-xrp" class="form-input" value="10" min="0" max="500" step="1">
+                    <span class="cost-unit">XRP</span>
+                    <span class="cost-usd" id="deposit-usd">≈ $20 USD</span>
                 </div>
-                <p class="sub-text" style="margin-top: 6px;">Each participant locks this amount. Ghost = lose it. Show up = get it back.</p>
+                <p class="sub-text" style="margin-top: 6px;">Set to 0 for a no-stakes event (karma only). Show up = get it back. Ghost = lose it.</p>
             </div>
 
             <div class="form-group">
-                <label class="form-label">Participants</label>
-                <div id="participants-list">
-                    <div class="participant-row">
-                        <span class="participant-label">A</span>
-                        <input type="text" class="form-input participant-name" placeholder="Participant 1 name..." maxlength="20">
-                    </div>
-                    <div class="participant-row">
-                        <span class="participant-label">B</span>
-                        <input type="text" class="form-input participant-name" placeholder="Participant 2 name..." maxlength="20">
-                    </div>
+                <label class="form-label">Number of Participants</label>
+                <div class="count-row">
+                    <button class="count-btn" onclick="changeCount(-1)">−</button>
+                    <span class="count-val" id="count-display">2</span>
+                    <button class="count-btn" onclick="changeCount(1)">+</button>
+                    <span class="cost-unit">people</span>
                 </div>
-                <p class="sub-text" style="margin-top: 8px;">New XRPL wallets will be created for each person (~15s per wallet).</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Participant Names</label>
+                <div id="participants-list"></div>
+                <p class="sub-text" style="margin-top: 6px;">New XRPL wallets will be created for each person (~15s per wallet).</p>
             </div>
 
             <div class="form-group">
@@ -96,11 +102,41 @@
         d.setSeconds(0);
         document.getElementById('event-time').value = d.toISOString().slice(0, 16);
 
-        // Live USD estimate (using config rate $2/XRP)
+        // Live USD estimate ($2/XRP demo rate)
         document.getElementById('deposit-xrp').addEventListener('input', function() {
-            const usd = (parseFloat(this.value) * 2).toFixed(0);
-            document.getElementById('deposit-usd').textContent = `(~$${usd})`;
+            const val = parseFloat(this.value) || 0;
+            document.getElementById('deposit-usd').textContent = val === 0 ? '(no stakes)' : `≈ $${(val * 2).toFixed(0)} USD`;
         });
+
+        // Participant count
+        let participantCount = 2;
+        const LABELS = ['A','B','C','D','E','F'];
+
+        function renderParticipants() {
+            const list = document.getElementById('participants-list');
+            // Preserve existing values
+            const existing = Array.from(list.querySelectorAll('.participant-name')).map(i => i.value);
+            list.innerHTML = '';
+            for (let i = 0; i < participantCount; i++) {
+                const row = document.createElement('div');
+                row.className = 'participant-row';
+                row.innerHTML = `
+                    <span class="participant-badge">${LABELS[i]}</span>
+                    <input type="text" class="form-input participant-name"
+                           placeholder="Participant ${i+1} name..." maxlength="20"
+                           value="${existing[i] || ''}">
+                `;
+                list.appendChild(row);
+            }
+        }
+
+        function changeCount(delta) {
+            participantCount = Math.max(2, Math.min(6, participantCount + delta));
+            document.getElementById('count-display').textContent = participantCount;
+            renderParticipants();
+        }
+
+        renderParticipants();
     </script>
 </body>
 </html>

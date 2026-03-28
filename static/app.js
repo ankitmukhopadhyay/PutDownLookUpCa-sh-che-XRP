@@ -82,25 +82,27 @@ async function createEvent() {
     const lat = document.getElementById('lat-input').value;
     const lon = document.getElementById('lon-input').value;
 
-    const nameInputs = document.querySelectorAll('.participant-name');
-    const nameA = nameInputs[0] ? nameInputs[0].value.trim() : '';
-    const nameB = nameInputs[1] ? nameInputs[1].value.trim() : '';
+    const participantNames = Array.from(document.querySelectorAll('.participant-name'))
+        .map(i => i.value.trim()).filter(Boolean);
 
     if (!name) { alert('Enter an event name.'); return; }
     if (!datetimeVal) { alert('Set a scheduled start time.'); return; }
-    if (!nameA || !nameB) { alert('Enter names for both participants.'); return; }
-    if (nameA.toLowerCase() === nameB.toLowerCase()) { alert('Participants must have different names.'); return; }
-    if (!depositXrp || depositXrp < 1) { alert('Enter a valid deposit amount.'); return; }
+    if (participantNames.length < 2) { alert('Enter names for all participants.'); return; }
+    if (new Set(participantNames.map(n => n.toLowerCase())).size !== participantNames.length) {
+        alert('All participant names must be unique.'); return;
+    }
+    if (isNaN(depositXrp) || depositXrp < 0) { alert('Enter a valid cost (0 or more).'); return; }
     if (!lat || !lon) { alert('Set the venue location first.'); return; }
 
     const scheduledTime = new Date(datetimeVal).getTime() / 1000;
+    const n = participantNames.length;
 
     const btn = document.getElementById('create-btn');
     const resultDiv = document.getElementById('create-result');
     btn.textContent = 'Creating wallets...';
     btn.disabled = true;
     resultDiv.classList.remove('hidden');
-    resultDiv.innerHTML = '<span class="spinner"></span> Creating XRPL wallets for both participants (~30 seconds)...';
+    resultDiv.innerHTML = `<span class="spinner"></span> Creating ${n} XRPL wallets (~${n * 15}s)...`;
 
     try {
         const resp = await fetch('/api/event/create', {
@@ -112,8 +114,7 @@ async function createEvent() {
                 lon: parseFloat(lon),
                 scheduled_time: scheduledTime,
                 deposit_xrp: depositXrp,
-                participant_a_name: nameA,
-                participant_b_name: nameB,
+                participant_names: participantNames,
             }),
         });
         const data = await resp.json();
@@ -195,17 +196,30 @@ async function resolveEvent() {
             btn.disabled = false;
         } else {
             let html = `<span style="color:var(--positive);font-weight:700">Resolved: ${data.outcome.toUpperCase().replace(/_/g,' ')}</span>\n\n`;
-            html += 'Karma Changes:\n';
-            if (data.karma_changes) {
-                for (const [key, val] of Object.entries(data.karma_changes)) {
-                    const sign = val.karma_delta > 0 ? '+' : '';
-                    const color = val.karma_delta > 0 ? 'var(--positive)' : 'var(--negative)';
-                    html += `  ${key}: <span style="color:${color}">${sign}${val.karma_delta} KRM</span> — ${val.reason}\n`;
+
+            if (data.showups && data.showups.length) {
+                html += `Showed up (${data.showups.length}): ${data.showups.join(', ')}\n`;
+                if (data.deposit_xrp > 0)
+                    html += `  Payout: ${data.payout_per_showup} XRP each\n`;
+            }
+            if (data.ghosts && data.ghosts.length) {
+                html += `Ghosted (${data.ghosts.length}): ${data.ghosts.join(', ')}\n`;
+            }
+
+            html += '\nNew Karma Scores:\n';
+            if (data.new_scores) {
+                for (const [name, score] of Object.entries(data.new_scores)) {
+                    html += `  ${name}: ${Math.floor(score)} KRM\n`;
                 }
             }
+
             if (data.tx_hashes) {
                 html += '\nTransaction Hashes:\n';
-                const all = [...(data.tx_hashes.escrow||[]), ...(data.tx_hashes.payments||[]), ...(data.tx_hashes.karma||[])];
+                const all = [
+                    ...(data.tx_hashes.deposits||[]),
+                    ...(data.tx_hashes.payments||[]),
+                    ...(data.tx_hashes.karma||[]),
+                ];
                 for (const hash of all) {
                     if (hash) html += `  <a href="https://testnet.xrpl.org/transactions/${hash}" target="_blank" class="tx-link">${hash.substring(0, 20)}...</a>\n`;
                 }
